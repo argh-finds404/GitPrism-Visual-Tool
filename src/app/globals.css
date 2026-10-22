@@ -1,26 +1,411 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ------------------------------------------------------------------ */
+/* Tokens                                                              */
+/* ------------------------------------------------------------------ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f8f7f4; /* Warm Ivory */
+  --paper-2: #f1efea;
+  --surface: #ffffff;
+  --ink: #191720; /* Deep Ink */
+  --ink-2: #4a4657;
+  --ink-3: #777285;
+  --line: #e9e6ef; /* Cool Mist */
+  --line-2: #d9d4e3;
+  --violet: #7654e8; /* Prism Violet */
+  --violet-ink: #5b3dd1;
+  --violet-wash: #efeafd;
+  --lilac: #b6a0ff; /* Electric Lilac */
+  --cyan: #68d9f5; /* Signal Cyan */
+  --magenta: #e85ac4;
+  --add: #1c7c52;
+  --add-bg: #e5f4ec;
+  --del: #b8392f;
+  --del-bg: #fbe9e6;
+  --night: #191720;
+  --night-2: #221f2c;
+  --night-line: #34303f;
+  --shadow: 0 1px 0 rgb(25 23 32 / 0.04), 0 12px 32px -16px rgb(46 30 110 / 0.18);
+  /* Git object types, always paired with a shape. */
+  --c-commit: #7654e8;
+  --c-tree: #23885e;
+  --c-blob: #23869a;
+  --c-ref: #b9790f;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --paper: #121018;
+  --paper-2: #17141f;
+  --surface: #1c1926;
+  --ink: #f3f1f8;
+  --ink-2: #bdb8cb;
+  --ink-3: #8c869c;
+  --line: #2b2737;
+  --line-2: #3a3549;
+  --violet: #9579f5;
+  --violet-ink: #b6a0ff;
+  --violet-wash: #231d3a;
+  --add: #5ed39b;
+  --add-bg: #15291f;
+  --del: #ff8f84;
+  --del-bg: #2e1618;
+  --night: #0d0b12;
+  --night-2: #17141f;
+  --night-line: #2b2737;
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.3), 0 16px 40px -20px rgb(0 0 0 / 0.7);
+  --c-commit: #a48cff;
+  --c-tree: #4cc38a;
+  --c-blob: #68d9f5;
+  --c-ref: #f0b75a;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-violet: var(--violet);
+  --color-violet-ink: var(--violet-ink);
+  --color-violet-wash: var(--violet-wash);
+  --color-lilac: var(--lilac);
+  --color-cyan: var(--cyan);
+  --color-magenta: var(--magenta);
+  --color-add: var(--add);
+  --color-add-bg: var(--add-bg);
+  --color-del: var(--del);
+  --color-del-bg: var(--del-bg);
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-night-line: var(--night-line);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-instrument), "Times New Roman", serif;
+  --shadow-soft: var(--shadow);
+  --ease-prism: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--violet) 28%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Editorial display type. A utility, so leading-* and tracking-* can still refine it. */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+
+/* Component classes. Keep them free of properties that utilities also set on the same element. */
+
+.shell {
+  width: 100%;
+  max-width: 1296px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+@media (min-width: 768px) {
+  .shell {
+    padding-inline: 40px;
+  }
+}
+
+/* The refracted spectrum, reserved for the prism and special moments. */
+.spectrum-text {
+  background: linear-gradient(100deg, var(--violet) 0%, var(--magenta) 38%, #ffb36b 58%, var(--cyan) 80%, var(--violet) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Buttons --------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 48px;
+  padding-inline: 1.35rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition:
+    transform 0.35s var(--ease-prism),
+    background-color 0.25s,
+    box-shadow 0.35s var(--ease-prism),
+    border-color 0.25s,
+    color 0.25s;
+  will-change: transform;
+}
+.btn:hover {
+  transform: translateY(-2px);
+}
+.btn:active {
+  transform: translateY(0);
+}
+.btn .btn-arrow {
+  transition: transform 0.35s var(--ease-prism);
+}
+.btn:hover .btn-arrow {
+  transform: translate(2px, -2px);
+}
+.btn-md {
+  height: 44px;
+}
+.btn-sm {
+  height: 40px;
+  padding-inline: 1rem;
+  font-size: 0.88rem;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--violet) 70%, transparent);
+}
+.btn-primary:hover {
+  background: var(--violet);
+  color: #fff;
+  box-shadow: 0 16px 36px -14px var(--violet);
+}
+.btn-ghost {
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+}
+.btn-ghost:hover {
+  border-color: var(--violet);
+  color: var(--violet-ink);
+}
+
+/* Small controls used inside interactive demos. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 34px;
+  padding-inline: 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  color: var(--ink-2);
+  background: var(--surface);
+  transition:
+    border-color 0.2s,
+    color 0.2s,
+    background-color 0.2s;
+}
+.chip:hover {
+  border-color: var(--violet);
+  color: var(--ink);
+}
+.chip[aria-pressed="true"],
+.chip[data-active="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+/* Dark immersive sections keep their own palette in both themes. */
+.night {
+  --ink: #f3f1f8;
+  --ink-2: #bdb8cb;
+  --ink-3: #8f89a0;
+  --line: #2f2b3b;
+  --line-2: #3d384b;
+  --surface: #221f2c;
+  --paper: #191720;
+  --violet: #9579f5;
+  --violet-ink: #c4b3ff;
+  --c-commit: #a48cff;
+  --c-tree: #4cc38a;
+  --c-blob: #68d9f5;
+  --c-ref: #f0b75a;
+  background: var(--night);
+  color: var(--ink);
+  color-scheme: dark;
+}
+
+/* Animated dashes travelling along object references. */
+@keyframes flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+.flow {
+  stroke-dasharray: 4 8;
+  animation: flow 1.2s linear infinite;
+}
+.paused .flow {
+  animation-play-state: paused;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.shimmer {
+  animation: shimmer 8s linear infinite;
+}
+
+/* Theme switch: circular reveal using the View Transitions API. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Workbench ------------------------------------------------------- */
+
+@keyframes pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.wb-canvas .react-flow__edge-textbg {
+  fill: #191720;
+}
+.wb-canvas .react-flow__edge-text {
+  fill: #b9b3c8;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.wb-canvas .react-flow__node/* Text fields show focus with their own border instead. */
+:focus-visible:not(input, textarea, select) {
+  outline: 2px solid var(--violet);
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+.wb-canvas .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid #34303f;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.wb-canvas .react-flow__controls-button {
+  background: #221f2c;
+  border-bottom-color: #34303f;
+  fill: #cfcadb;
+}
+.wb-canvas .react-flow__controls-button:hover {
+  background: #2d2939;
+}
+.wb-canvas .react-flow__minimap {
+  background: #14121b;
+  border: 1px solid #34303f;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.wb-canvas .react-flow__attribution {
+  background: transparent;
+}
+.wb-canvas .react-flow__attribution a {
+  color: #6f6982;
+}
+
+/* Impact Studio ---------------------------------------------------- */
+
+.hud {
+  background: rgb(26 22 35 / 0.8);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px -24px rgb(0 0 0 / 0.8);
+  color: #f3eef8;
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+/* Solid fallback where backdrop blur isn't supported. */
+@supports not (backdrop-filter: blur(1px)) {
+  .hud {
+    background: #1a1623;
+  }
+}
+.studio {
+  --ink: #f3eef8;
+  --ink-2: #c9c0d8;
+  --ink-3: #9a90ad;
+  --line: rgb(255 255 255 / 0.08);
+  --line-2: rgb(255 255 255 / 0.14);
+  --surface: #221d2e;
+  --paper: #1a1623;
+  --paper-2: #15121d;
+  --violet: #9d7bff;
+  --violet-ink: #c4b3ff;
+  --violet-wash: rgb(124 58 237 / 0.18);
+  --add: #3de0a6;
+  --add-bg: rgb(0 217 149 / 0.12);
+  --del: #ff7a90;
+  --del-bg: rgb(255 0 122 / 0.12);
+  color-scheme: dark;
+  background: #100e16;
+  color: var(--ink);
+}
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 5px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: #c9c0d8;
 }

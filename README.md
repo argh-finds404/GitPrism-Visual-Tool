@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GitPrism
 
-## Getting Started
+Git makes sense when you can see it. GitPrism is an interactive, visual way to understand what Git stores: blobs, trees, commits, snapshots and history.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router, Turbopack, Cache Components) + React 19 + TypeScript
+- Tailwind CSS v4 with a small token system in `src/app/globals.css`
+- React Three Fiber + drei for the 3D prism, Motion for React for UI motion
+- PostgreSQL + Prisma 7 (driver adapter `@prisma/adapter-pg`)
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env   # then set DATABASE_URL
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+No page needs a database yet: the lab stores its work in the browser. The Prisma schema is ready for when accounts or sync are added.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Pages
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Route  | What it is |
+| ------ | ---------- |
+| `/`    | Landing page: 3D prism hero and the scroll story of file, blob, tree, commit |
+| `/lab` | Workbench: edit files, stage, commit, branch, inspect objects, compare, replay, guided challenges |
 
-## Learn More
+The lab is local-first. It saves the list of actions you took in IndexedDB and rebuilds the repository by replaying them over the built-in sample, so a refresh never loses work. **Reset lab** clears it.
 
-To learn more about Next.js, take a look at the following resources:
+### What is real and what is simulated
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Real: blob, tree and commit objects are encoded byte-for-byte like Git, so their IDs match `git hash-object` (the test suite rebuilds the sample history with real `git` and compares every ID). Simulated: the working tree and index live in memory, and there is no merging, packing, remotes or `.git` directory.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Tests
 
-## Deploy on Vercel
+```bash
+npm test
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Vitest covers hashing against real `git`, staging and commit rules, branch switching, persistence validation and graph construction.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project layout
+
+```
+src/
+  app/                 layout, global tokens, homepage
+  components/
+    brand/             prism mark and wordmark
+    site/              navigation and footer
+    sections/          one file per homepage section
+    lab/               homepage snapshot-demo state (lab + diff sections)
+    workbench/         /lab shell, header, UI state, shared bits
+    explorer/          file tree, object list, refs, file editor
+    graph/             React Flow canvas and node renderers
+    inspector/         Prism Lens object inspector
+    timeline/          changes, history, compare, replay, explain
+    diff/              line diff renderer
+    three/             WebGL prism scene
+    ui/                shared pieces (chapter heading)
+  features/repository/
+    engine.ts          pure repository commands (stage, commit, branch, ...)
+    session.ts         rebuilds every step from recorded commands
+    storage.ts         IndexedDB persistence behind a swappable interface
+    RepositoryProvider the single source of truth for every panel
+  lib/
+    graph/             history, object and refraction graph builders
+    git.ts             Git-compatible SHA-1, blob/tree/commit hashing, line diff
+    sample.ts          sample repository used by the story sections
+    theme.ts           light/dark theme with view-transition reveal
+    prisma.ts          Prisma client (server only)
+prisma/schema.prisma   Workspace, GitObject, Ref
+```
+
+Every object ID shown on the site is computed from real Git object bytes and matches `git hash-object`.
+
+## Design system
+
+| Token        | Value     | Use                               |
+| ------------ | --------- | --------------------------------- |
+| Prism Violet | `#7654E8` | Primary actions, active states    |
+| Electric Lilac | `#B6A0FF` | Highlights, glow                |
+| Deep Ink     | `#191720` | Headings, dark sections           |
+| Warm Ivory   | `#F8F7F4` | Page background                   |
+| Cool Mist    | `#E9E6EF` | Borders, neutral surfaces         |
+| Signal Cyan  | `#68D9F5` | 3D and graph accents              |
+
+Type: Instrument Serif (display), Geist (interface), Geist Mono (hashes, commands, diffs).

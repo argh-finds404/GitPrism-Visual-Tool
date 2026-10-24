@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { Link2, RotateCcw } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
+import { Aurora } from "@/components/ui/Aurora";
 import { blobHeader, hashBlob, short } from "@/lib/git";
 import { usePrefersReducedMotion } from "@/lib/theme";
 
@@ -24,7 +25,7 @@ function FileCard({
 }) {
   const id = `ca-${path.replace(/\W/g, "-")}`;
   return (
-    <div className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+    <div className="panel rounded-2xl p-4">
       <div className="flex items-center justify-between">
         <label htmlFor={id} className="font-mono text-[0.82rem] text-ink">
           {path}
@@ -65,8 +66,9 @@ export function ContentAddressing() {
   const spring = reduce ? { duration: 0 } : { type: "spring" as const, stiffness: 180, damping: 22 };
 
   return (
-    <section id="identity" aria-labelledby="identity-title" className="relative overflow-hidden py-28 md:py-36">
-      <div className="shell">
+    <section id="identity" aria-labelledby="identity-title" className="relative overflow-hidden bg-paper-2 py-28 md:py-36">
+      <Aurora tones={["magenta", "violet"]} />
+      <div className="shell relative">
         <Chapter n={6} name="the invisible part" id="identity-title" title="Same content, same object.">
           <p>
             Two files with identical content are stored as one blob, because a blob&apos;s ID comes from its content
@@ -114,8 +116,8 @@ export function ContentAddressing() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={spring}
-                    className="rounded-2xl border bg-surface p-5 shadow-soft"
-                    style={{ borderColor: blob.tone }}
+                    className="rounded-2xl border bg-surface p-5"
+                    style={{ borderColor: blob.tone, boxShadow: `0 0 0 3px color-mix(in oklab, ${blob.tone} 16%, transparent), 0 24px 60px -24px ${blob.tone}` }}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-2 font-mono text-[0.78rem] text-ink-3">

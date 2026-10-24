@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
+import { Aurora } from "@/components/ui/Aurora";
 
 /* Small line illustrations, one idea per stage. */
 const glyphs = [
@@ -38,18 +39,20 @@ const glyphs = [
   </g>,
 ];
 
+// Each stage takes one colour of the spectrum, in order, like light leaving the prism.
 const stages = [
-  { title: "Foundations", body: "Working files, staging, commits and the states a repository moves through." },
-  { title: "Git objects", body: "Blobs, trees and commits, and why Git addresses everything by content." },
-  { title: "History", body: "Parent commits, references and how commit graphs branch and merge." },
-  { title: "Comparing states", body: "Diffs, inspecting snapshots and reading what actually changed." },
-  { title: "Deeper understanding", body: "How objects relate on disk, and selected parts of Git's internals." },
+  { title: "Foundations", body: "Working files, staging, commits and the states a repository moves through.", color: "var(--violet)", href: "#playground", cta: "Start here" },
+  { title: "Git objects", body: "Blobs, trees and commits, and why Git addresses everything by content.", color: "var(--cyan)", href: "#how", cta: "Chapter 2" },
+  { title: "History", body: "Parent commits, references and how commit graphs branch and merge.", color: "var(--add)", href: "#history", cta: "Chapter 5" },
+  { title: "Comparing states", body: "Diffs, inspecting snapshots and reading what actually changed.", color: "var(--magenta)", href: "#diff", cta: "Chapter 4" },
+  { title: "Deeper understanding", body: "How objects relate on disk, and selected parts of Git's internals.", color: "var(--amber)", href: "/lab", cta: "Open the lab" },
 ];
 
 export function Journey() {
   return (
-    <section id="journey" aria-labelledby="journey-title" className="relative border-t border-line py-28 md:py-36">
-      <div className="shell">
+    <section id="journey" aria-labelledby="journey-title" className="relative overflow-hidden py-28 md:py-36">
+      <Aurora tones={["amber", "violet"]} />
+      <div className="shell relative">
         <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
           <h2 id="journey-title" className="display text-[clamp(2.6rem,5.6vw,4.9rem)] lg:col-span-7">
             Start with what you see. Finish with how it works.
@@ -64,21 +67,32 @@ export function Journey() {
           <motion.span
             aria-hidden="true"
             className="absolute left-[23px] top-0 h-full w-px origin-top md:left-0 md:top-[23px] md:h-px md:w-full md:origin-left"
-            style={{ background: "linear-gradient(90deg, var(--violet), var(--magenta), #ffb36b, var(--cyan))" }}
+            style={{ background: "linear-gradient(90deg, var(--violet), var(--cyan), var(--add), var(--magenta), var(--amber))" }}
             initial={{ scaleX: 0, scaleY: 0 }}
             whileInView={{ scaleX: 1, scaleY: 1 }}
             viewport={{ once: true, margin: "-20% 0px" }}
             transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
           />
           {stages.map((s, i) => (
-            <li key={s.title} className="relative grid grid-cols-[48px_1fr] gap-5 md:block">
-              <span className="relative z-[1] grid h-12 w-12 place-items-center rounded-full border border-line-2 bg-paper font-mono text-[0.8rem] text-violet">
+            <motion.li
+              key={s.title}
+              className="group relative grid grid-cols-[48px_1fr] gap-5 md:block"
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-15% 0px" }}
+              transition={{ duration: 0.6, delay: 0.25 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <span
+                className="relative z-[1] grid h-12 w-12 place-items-center rounded-full border bg-paper font-mono text-[0.8rem] transition-shadow duration-300 group-hover:shadow-[0_0_24px_-4px_var(--stage)]"
+                style={{ ["--stage" as string]: s.color, borderColor: s.color, color: s.color }}
+              >
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div className="md:mt-7">
                 <svg
                   viewBox="0 0 52 52"
-                  className="mb-4 h-12 w-12 text-ink-3"
+                  className="mb-4 h-12 w-12"
+                  style={{ color: s.color }}
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.4"
@@ -88,15 +102,13 @@ export function Journey() {
                 >
                   {glyphs[i]}
                 </svg>
-                <h3 className="text-[1.1rem] font-medium text-ink">{s.title}</h3>
+                <h3 className="text-[1.15rem] font-semibold tracking-[-0.01em] text-ink">{s.title}</h3>
                 <p className="mt-2 text-[0.92rem] leading-relaxed text-ink-2">{s.body}</p>
-                {i === 0 && (
-                  <a href="#playground" className="mt-4 inline-flex items-center gap-1 text-[0.86rem] font-medium text-violet-ink hover:underline">
-                    Start here <ArrowUpRight size={14} />
-                  </a>
-                )}
+                <a href={s.href} className="mt-4 inline-flex items-center gap-1 text-[0.86rem] font-medium hover:underline" style={{ color: s.color }}>
+                  {s.cta} <ArrowUpRight size={14} />
+                </a>
               </div>
-            </li>
+            </motion.li>
           ))}
         </ol>
       </div>

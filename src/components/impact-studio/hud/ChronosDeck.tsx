@@ -14,7 +14,7 @@ export function ChronosDeck({ commandRef, compact = false }: { commandRef: React
   const s = useStudio();
   const reduce = usePrefersReducedMotion();
   const [playing, setPlaying] = useState(false);
-  const steps = useMemo(() => [s.history.base, ...s.history.commits], [s.history]);
+  const steps = useMemo(() => [s.history.base, ...s.range], [s.history.base, s.range]);
   const last = steps.length - 1;
   const step = s.chronosStep;
   const active = playing && step < last;
@@ -69,7 +69,7 @@ export function ChronosDeck({ commandRef, compact = false }: { commandRef: React
             <span className="absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-white/12" aria-hidden="true" />
             <span
               className="absolute left-2 top-1/2 h-px -translate-y-1/2 bg-[#FFB800] transition-[width] duration-500"
-              style={{ width: `calc(${(step / last) * 100}% - ${(step / last) * 16}px)` }}
+              style={{ width: `calc(${(last ? step / last : 1) * 100}% - ${(last ? step / last : 1) * 16}px)` }}
               aria-hidden="true"
             />
             {steps.map((c, i) => (

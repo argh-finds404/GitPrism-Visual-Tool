@@ -55,6 +55,12 @@ export function Header() {
       )}
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <Link
+          href="/review/gitprism-demo/acme-shop/pull/42"
+          className="mr-1 hidden h-8 items-center rounded-lg border border-line-2 px-2.5 text-[12px] text-ink-2 transition-colors hover:border-violet hover:text-violet-ink lg:flex"
+        >
+          PR Studio
+        </Link>
         <SaveBadge />
         <span
           className="mr-1 hidden rounded-full border border-line-2 px-2.5 py-1 text-[11px] text-ink-2 xl:inline"

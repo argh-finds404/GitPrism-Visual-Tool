@@ -68,7 +68,7 @@ export function ObjNode({ data }: NodeProps<ObjFlowNode>) {
         <Handles />
         <div
           className={`flex h-[26px] items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 font-mono text-[11px] ${
-            selected ? "border-[color:var(--c-ref)] bg-[color:var(--c-ref)] text-[#191720]" : "border-[color:var(--c-ref)]/70 bg-[#1d1a26] text-[color:var(--c-ref)]"
+            selected ? "border-[color:var(--c-ref)] bg-[color:var(--c-ref)] text-[#08070f]" : "border-[color:var(--c-ref)]/70 bg-[#120e20] text-[color:var(--c-ref)]"
           } ${kind === "head" ? "border-dashed" : ""}`}
         >
           {kind === "branch" && current && <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />}

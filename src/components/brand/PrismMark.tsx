@@ -26,8 +26,8 @@ export function Wordmark() {
   return (
     <span className="flex items-center gap-2.5">
       <PrismMark />
-      <span className="text-[1.05rem] font-semibold tracking-[-0.02em]">
-        Git<span className="display text-[1.3rem] font-normal italic tracking-normal">Prism</span>
+      <span className="display text-[1.2rem] leading-none tracking-[-0.03em]">
+        Git<span className="font-[450] text-violet-ink">Prism</span>
       </span>
     </span>
   );

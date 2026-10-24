@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeftRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
+import { Aurora } from "@/components/ui/Aurora";
 import { useLab, type Snapshot } from "@/components/lab/LabProvider";
 import { diffLines, hunkIds, short, type DiffLine } from "@/lib/git";
 
@@ -122,8 +123,9 @@ export function DiffView() {
   };
 
   return (
-    <section id="diff" aria-labelledby="diff-title" className="relative border-t border-line py-28 md:py-36">
-      <div className="shell grid gap-12 lg:grid-cols-12">
+    <section id="diff" aria-labelledby="diff-title" className="relative overflow-hidden py-28 md:py-36">
+      <Aurora tones={["green", "magenta"]} />
+      <div className="shell relative grid gap-12 lg:grid-cols-12">
         <div className="lg:col-span-4">
           <Chapter n={4} name="the difference" id="diff-title" title="A diff compares two states.">
             <p>
@@ -171,7 +173,7 @@ export function DiffView() {
             />
           </div>
 
-          <div className="mt-5 overflow-hidden rounded-[24px] border border-line bg-surface shadow-soft">
+          <div className="panel mt-5 overflow-hidden rounded-[24px]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
               <div className="flex items-center gap-3 text-[0.85rem]">
                 <span className="font-mono text-ink">hello.txt</span>

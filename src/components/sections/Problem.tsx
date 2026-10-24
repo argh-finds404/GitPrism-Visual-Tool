@@ -3,11 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "motion/react";
 import { Chapter } from "@/components/ui/Chapter";
+import { Aurora } from "@/components/ui/Aurora";
 import { usePrefersReducedMotion } from "@/lib/theme";
-import { hashCommit, short } from "@/lib/git";
-import { BASE_TIME, commits, tree } from "@/lib/sample";
+import { hashBlob, hashCommit, hashTree, short } from "@/lib/git";
+import { BASE_TIME, commits, treeEntries } from "@/lib/sample";
 
-const commitId = short(hashCommit({ tree, parents: [commits.c2.oid], message: "Update homepage", time: BASE_TIME + 5400 }));
+// A real change: hello.txt goes from one line to two different lines (+2 −1),
+// so the commit, tree and blob below are exactly what Git would write.
+const newHello = hashBlob(`Hello, GitPrism!\nNow with a homepage.\n`);
+const newTree = hashTree(treeEntries.map((e) => (e.name === "hello.txt" ? { ...e, oid: newHello } : e)));
+const newCommit = hashCommit({ tree: newTree, parents: [commits.c2.oid], message: "Update homepage", time: BASE_TIME + 5400 });
+const commitId = short(newCommit);
+
+const sealed = [
+  { kind: "commit", oid: newCommit, color: "var(--c-commit)" },
+  { kind: "tree", oid: newTree, color: "var(--c-tree)" },
+  { kind: "blob", oid: newHello, color: "var(--c-blob)" },
+] as const;
 
 const script = [
   { kind: "cmd", text: "git add ." },
@@ -73,7 +85,8 @@ function Terminal() {
 
 export function Problem() {
   return (
-    <section id="problem" aria-labelledby="problem-title" className="relative py-28 md:py-40">
+    <section id="problem" aria-labelledby="problem-title" className="relative overflow-hidden py-28 md:py-40">
+      <Aurora tones={["violet", "magenta"]} />
       <div className="shell grid gap-14 lg:grid-cols-12 lg:gap-10">
         <div className="lg:col-span-6">
           <Chapter n={1} name="the problem" id="problem-title" title={<>You know the command. But do you know what changed?</>}>
@@ -93,7 +106,7 @@ export function Problem() {
                 transition={{ delay: 0.5 + i * 0.35, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-baseline gap-4 border-b border-line pb-3 text-[1.15rem] text-ink"
               >
-                <span className="display text-2xl italic text-violet">?</span>
+                <span className="display text-2xl text-violet">?</span>
                 {q}
               </motion.li>
             ))}
@@ -102,16 +115,39 @@ export function Problem() {
 
         <div className="flex flex-col justify-end lg:col-span-6 lg:pl-6">
           <Terminal />
-          <div className="mt-5 grid grid-cols-3 gap-3" aria-hidden="true">
-            {["object", "object", "object"].map((o, i) => (
-              <div
-                key={i}
-                className="grid h-20 place-items-center rounded-xl border border-dashed border-line-2 font-mono text-[0.8rem] text-ink-3"
-              >
-                {o} ?
-              </div>
+          <p className="mt-6 text-[0.85rem] text-ink-3">That one command wrote three objects. Hover to unseal them.</p>
+          <ul className="mt-2.5 grid grid-cols-3 gap-3">
+            {sealed.map((o) => (
+              <li key={o.kind}>
+                <a
+                  href="#how"
+                  className="group relative block h-24 overflow-hidden rounded-xl border border-line bg-surface/70 p-3 transition-[border-color,box-shadow] duration-300 hover:shadow-[0_14px_40px_-18px_var(--violet)] focus-visible:shadow-[0_14px_40px_-18px_var(--violet)]"
+                  style={{ ["--obj" as string]: o.color }}
+                  aria-label={`${o.kind} ${short(o.oid)}: see how Git builds it`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-25 blur-2xl transition-opacity duration-500 group-hover:opacity-60"
+                    style={{ background: o.color }}
+                  />
+                  <svg width="18" height="18" viewBox="0 0 12 12" aria-hidden="true" className="relative">
+                    {o.kind === "blob" && <circle cx="6" cy="6" r="4.8" fill={o.color} />}
+                    {o.kind === "tree" && <rect x="1.4" y="1.4" width="9.2" height="9.2" rx="1.6" fill={o.color} />}
+                    {o.kind === "commit" && <path d="M6 .8 11.2 6 6 11.2.8 6Z" fill={o.color} />}
+                  </svg>
+                  <span className="relative mt-3 block font-mono text-[0.72rem] uppercase tracking-[0.1em] text-ink-3 transition-colors group-hover:text-ink group-focus-visible:text-ink">
+                    <span className="group-hover:hidden group-focus-visible:hidden">sealed</span>
+                    <span className="hidden group-hover:inline group-focus-visible:inline" style={{ color: o.color }}>
+                      {o.kind}
+                    </span>
+                  </span>
+                  <span className="relative block font-mono text-[0.85rem] text-ink blur-[5px] transition-[filter] duration-500 group-hover:blur-0 group-focus-visible:blur-0">
+                    {short(o.oid)}
+                  </span>
+                </a>
+              </li>
             ))}
-          </div>
+          </ul>
           <p className="mt-10 display text-[clamp(1.8rem,3vw,2.5rem)] leading-tight text-ink">
             The command worked. <span className="text-ink-3">The mental model is still missing.</span>
           </p>

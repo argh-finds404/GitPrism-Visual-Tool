@@ -62,10 +62,10 @@ function Shell() {
       depth: s.depth,
       layers: s.layers,
       context: s.context,
-      chronos: { step: s.chronosStep, commits: s.history.commits, base: s.history.base },
+      chronos: { step: s.chronosStep, commits: s.range, base: s.history.base },
       highlight: s.highlight?.ids ?? null,
     });
-  }, [s.result, s.lens, s.selected, s.depth, s.layers, s.context, s.chronosStep, s.history, s.highlight]);
+  }, [s.result, s.lens, s.selected, s.depth, s.layers, s.context, s.chronosStep, s.range, s.history, s.highlight]);
 
   // Keyboard: 1–5 lenses, [ and ] panels, Esc, Ctrl/⌘K commands, F focus.
   useEffect(() => {

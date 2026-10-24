@@ -57,7 +57,10 @@ export function ReviewContext({ compact = false }: { compact?: boolean }) {
           </span>
           <ChevronDown size={13} className="shrink-0 text-[#9a90ad]" />
         </Popover>
-        <span className="ml-auto shrink-0 rounded bg-[#FFB800]/15 px-1.5 py-px text-[10px] text-[#FFD166]" title="Sample data analyzed in your browser">
+        <Link href="/lab" className="ml-auto shrink-0 rounded-md px-1.5 py-px text-[11px] text-[#c9c0d8] hover:bg-white/8 hover:text-white">
+          Lab
+        </Link>
+        <span className="shrink-0 rounded bg-[#FFB800]/15 px-1.5 py-px text-[10px] text-[#FFD166]" title="Sample data analyzed in your browser">
           Fixture
         </span>
       </div>

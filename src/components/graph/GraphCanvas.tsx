@@ -218,7 +218,7 @@ function Canvas() {
         proOptions={{ hideAttribution: false }}
         fitView
       >
-        <Background variant={BackgroundVariant.Lines} gap={28} color="#2a2636" bgColor="#16141d" />
+        <Background variant={BackgroundVariant.Lines} gap={28} color="#1c1730" bgColor="#0b0916" />
         <Controls showInteractive={false} position="bottom-right" />
         {minimap && (
           <MiniMap
@@ -238,7 +238,7 @@ function Canvas() {
       {/* Canvas tools */}
       <div className="pointer-events-none absolute inset-x-3 top-14 flex flex-wrap items-start justify-between gap-2">
         <BranchFilter />
-        <div className="pointer-events-auto flex gap-1 rounded-xl border border-[#34303f] bg-[#1d1a26]/90 p-1 backdrop-blur">
+        <div className="pointer-events-auto flex gap-1 rounded-xl border border-[#2a2342] bg-[#120e20]/90 p-1 backdrop-blur">
           <ToolButton label={drag ? "Lock node positions" : "Drag nodes"} pressed={drag} onClick={() => setDrag((d) => !d)}>
             <Hand size={15} />
           </ToolButton>
@@ -290,7 +290,7 @@ function ToolButton({ label, pressed, onClick, children }: { label: string; pres
       aria-label={label}
       title={label}
       aria-pressed={pressed}
-      className="grid h-7 w-7 place-items-center rounded-lg text-[#b9b3c8] hover:bg-white/10 hover:text-white aria-pressed:bg-[#3a3060] aria-pressed:text-white"
+      className="grid h-7 w-7 place-items-center rounded-lg text-[#b9b3c8] hover:bg-white/10 hover:text-white aria-pressed:bg-[#3b2c74] aria-pressed:text-white"
     >
       {children}
     </button>
@@ -309,12 +309,12 @@ function BranchFilter() {
     wb.setBranchFilter(next.length ? next : null);
   };
   return (
-    <div className="pointer-events-auto flex flex-wrap gap-1 rounded-xl border border-[#34303f] bg-[#1d1a26]/90 p-1 backdrop-blur" role="group" aria-label="Filter branches">
+    <div className="pointer-events-auto flex flex-wrap gap-1 rounded-xl border border-[#2a2342] bg-[#120e20]/90 p-1 backdrop-blur" role="group" aria-label="Filter branches">
       <button
         type="button"
         aria-pressed={!active}
         onClick={() => wb.setBranchFilter(null)}
-        className="h-7 rounded-lg px-2.5 text-[11.5px] text-[#b9b3c8] hover:text-white aria-pressed:bg-[#3a3060] aria-pressed:text-white"
+        className="h-7 rounded-lg px-2.5 text-[11.5px] text-[#b9b3c8] hover:text-white aria-pressed:bg-[#3b2c74] aria-pressed:text-white"
       >
         All branches
       </button>
@@ -324,7 +324,7 @@ function BranchFilter() {
           type="button"
           aria-pressed={!!active?.includes(b)}
           onClick={() => toggle(b)}
-          className="flex h-7 items-center gap-1.5 rounded-lg px-2.5 font-mono text-[11px] text-[#b9b3c8] hover:text-white aria-pressed:bg-[#3a3060] aria-pressed:text-white"
+          className="flex h-7 items-center gap-1.5 rounded-lg px-2.5 font-mono text-[11px] text-[#b9b3c8] hover:text-white aria-pressed:bg-[#3b2c74] aria-pressed:text-white"
         >
           <span className="h-[3px] w-3 rounded-full" style={{ background: LANE[i % LANE.length] }} aria-hidden="true" />
           {b}
@@ -342,7 +342,7 @@ function Legend() {
     { kind: "branch", text: "Reference" },
   ];
   return (
-    <ul className="absolute bottom-4 left-4 hidden gap-3 rounded-xl border border-[#34303f] bg-[#1d1a26]/90 px-3 py-2 text-[11px] text-[#b9b3c8] backdrop-blur sm:flex" aria-label="Legend">
+    <ul className="absolute bottom-4 left-4 hidden gap-3 rounded-xl border border-[#2a2342] bg-[#120e20]/90 px-3 py-2 text-[11px] text-[#b9b3c8] backdrop-blur sm:flex" aria-label="Legend">
       {items.map((i) => (
         <li key={i.kind} className="flex items-center gap-1.5">
           <Glyph kind={i.kind} size={11} />
@@ -360,8 +360,8 @@ export function CanvasRegion({ trailing }: { trailing?: React.ReactNode }) {
   const commit = wb.focusCommit ? state.objects[wb.focusCommit] : null;
 
   return (
-    <section aria-label="Repository canvas" className="night relative flex h-full min-h-0 flex-col bg-[#16141d]">
-      <div className="z-10 flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-[#2b2737] bg-[#191720] px-2" role="tablist" aria-label="Canvas view">
+    <section aria-label="Repository canvas" className="night relative flex h-full min-h-0 flex-col bg-[#0b0916]">
+      <div className="z-10 flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-[#231d3a] bg-[#0e0b19] px-2" role="tablist" aria-label="Canvas view">
         {views.map((v) => (
           <button
             key={v.id}
@@ -370,7 +370,7 @@ export function CanvasRegion({ trailing }: { trailing?: React.ReactNode }) {
             aria-selected={wb.view === v.id}
             title={v.hint}
             onClick={() => wb.setView(v.id)}
-            className="h-8 shrink-0 rounded-lg px-3 text-[12.5px] text-[#b9b3c8] transition-colors hover:text-white aria-selected:bg-[#2d2843] aria-selected:text-white"
+            className="h-8 shrink-0 rounded-lg px-3 text-[12.5px] text-[#b9b3c8] transition-colors hover:text-white aria-selected:bg-[#2a2150] aria-selected:text-white"
           >
             {v.label}
           </button>
@@ -378,7 +378,7 @@ export function CanvasRegion({ trailing }: { trailing?: React.ReactNode }) {
         {wb.openFile && (
           <span
             className={`ml-1 flex h-8 shrink-0 items-center rounded-lg pl-3 pr-1 font-mono text-[12px] ${
-              wb.view === "editor" ? "bg-[#2d2843] text-white" : "text-[#b9b3c8]"
+              wb.view === "editor" ? "bg-[#2a2150] text-white" : "text-[#b9b3c8]"
             }`}
           >
             <button type="button" role="tab" aria-selected={wb.view === "editor"} onClick={() => wb.setView("editor")} className="hover:text-white">

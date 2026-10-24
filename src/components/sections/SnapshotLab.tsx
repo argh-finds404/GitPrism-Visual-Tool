@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Check, GitCommitHorizontal, RotateCcw, Save } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
+import { Aurora } from "@/components/ui/Aurora";
 import { useLab } from "@/components/lab/LabProvider";
 import { blobHeader, hashBlob, short, splitLines } from "@/lib/git";
 
@@ -29,8 +30,9 @@ export function SnapshotLab() {
   };
 
   return (
-    <section id="playground" aria-labelledby="lab-title" className="relative py-28 md:py-36">
-      <div className="shell">
+    <section id="playground" aria-labelledby="lab-title" className="relative overflow-hidden py-28 md:py-36">
+      <Aurora tones={["violet", "cyan"]} />
+      <div className="shell relative">
         <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
             <Chapter n={3} name="the lab" id="lab-title" title="Save a snapshot. Watch Git name it.">
@@ -45,7 +47,7 @@ export function SnapshotLab() {
           </p>
         </div>
 
-        <div className="mt-14 grid overflow-hidden rounded-[28px] border border-line bg-surface shadow-soft lg:grid-cols-12">
+        <div className="panel mt-14 grid overflow-hidden rounded-[28px] lg:grid-cols-12">
           {/* Editor */}
           <div className="flex flex-col border-b border-line lg:col-span-7 lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">

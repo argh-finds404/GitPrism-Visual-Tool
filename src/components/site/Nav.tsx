@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Menu, Moon, Sun, X } from "lucide-react";
@@ -10,6 +11,7 @@ const links = [
   { href: "#playground", label: "Explore" },
   { href: "#how", label: "How it works" },
   { href: "#learn", label: "Learn" },
+  { href: "/review/gitprism-demo/acme-shop/pull/42", label: "PR Studio" },
 ];
 
 function ThemeToggle() {
@@ -76,12 +78,9 @@ export function Nav() {
         <ul className="hidden items-center gap-1 md:flex">
           {links.map((l) => (
             <li key={l.href}>
-              <a
-                href={l.href}
-                className="rounded-full px-4 py-2 text-[0.92rem] text-ink-2 transition-colors hover:text-ink"
-              >
+              <Link href={l.href} className="rounded-full px-4 py-2 text-[0.92rem] text-ink-2 transition-colors hover:text-ink">
                 {l.label}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -89,9 +88,9 @@ export function Nav() {
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <span className="hidden md:block">
-            <a href="/lab" className="btn btn-primary btn-sm">
+            <Link href="/lab" className="btn btn-primary btn-sm">
               Open the lab <ArrowUpRight size={16} className="btn-arrow" />
-            </a>
+            </Link>
           </span>
           <button
             type="button"
@@ -138,19 +137,15 @@ export function Nav() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.06 * i + 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <a
-                    href={l.href}
-                    onClick={() => setOpen(false)}
-                    className="display block border-b border-line py-5 text-5xl"
-                  >
+                  <Link href={l.href} onClick={() => setOpen(false)} className="display block border-b border-line py-5 text-[clamp(2.2rem,11vw,3rem)]">
                     {l.label}
-                  </a>
+                  </Link>
                 </motion.li>
               ))}
             </ul>
-            <a href="/lab" onClick={() => setOpen(false)} className="btn btn-primary mt-auto mb-8 justify-center">
+            <Link href="/lab" onClick={() => setOpen(false)} className="btn btn-primary mt-auto mb-8 justify-center">
               Open the lab <ArrowUpRight size={16} />
-            </a>
+            </Link>
           </motion.div>
         )}
       </AnimatePresence>

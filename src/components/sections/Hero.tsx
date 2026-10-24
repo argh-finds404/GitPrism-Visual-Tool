@@ -47,7 +47,7 @@ export function Hero() {
       {/* Prism stage: right side on desktop, top band on mobile. */}
       <div className="pointer-events-none absolute inset-x-0 top-16 h-[52svh] md:left-[34%] md:right-0 md:top-0 md:h-[100svh]">
         <PrismScene
-          background={theme === "dark" ? "#121018" : "#f8f7f4"}
+          background={theme === "dark" ? "#08070f" : "#f6f5fb"}
           reducedMotion={reduce}
           scrollTarget={ref}
         />
@@ -81,7 +81,7 @@ export function Hero() {
             {lines.map((line, i) => (
               <span key={line} className="block overflow-hidden pb-[0.08em]">
                 <motion.span
-                  className={`block ${i === 2 ? "italic" : ""}`}
+                  className={`block ${i === 2 ? "spectrum-text" : ""}`}
                   initial={reduce ? false : { y: "105%" }}
                   animate={{ y: 0 }}
                   transition={{ duration: 1, delay: 0.15 + i * 0.12, ease }}

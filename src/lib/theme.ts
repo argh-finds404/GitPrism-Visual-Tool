@@ -10,10 +10,10 @@ function subscribe(cb: () => void) {
   return () => obs.disconnect();
 }
 
-const read = (): Theme => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+const read = (): Theme => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
 
 export function useTheme() {
-  return useSyncExternalStore(subscribe, read, () => "light" as Theme);
+  return useSyncExternalStore(subscribe, read, () => "dark" as Theme);
 }
 
 /** Switch theme with a circular reveal that starts at the given point. */

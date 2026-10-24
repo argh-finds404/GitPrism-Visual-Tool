@@ -46,6 +46,9 @@ type Studio = {
   context: Set<string>;
   toggleContext: (id: string) => void;
   resetContext: () => void;
+  /** PR commits from base up to the analyzed head, oldest first. Chronos scrubs only these. */
+  range: FixtureCommit[];
+  /** 0 = base, range.length = the analyzed head. */
   chronosStep: number;
   setChronosStep: (s: number) => void;
 
@@ -103,7 +106,8 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [depth, setDepth] = useState(3);
   const [layers, setLayersRaw] = useState({ imports: true, calls: true, tests: true });
   const [contextRaw, setContext] = useState<Set<string> | null>(null);
-  const [chronosStep, setChronosStep] = useState(history.commits.length);
+  // null means "at the analyzed head", so a re-analysis always lands on its new head.
+  const [chronosRaw, setChronosRaw] = useState<number | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("impact");
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -151,6 +155,14 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   }, [runAnalysis]);
 
   const context = useMemo(() => contextRaw ?? new Set(result ? defaultItems(result).map((i) => i.nodeId) : []), [contextRaw, result]);
+
+  const range = useMemo(() => {
+    const head = result?.head ?? headOid;
+    const end = history.commits.findIndex((c) => c.oid === head);
+    return history.commits.slice(0, end + 1);
+  }, [history, result, headOid]);
+  const chronosStep = chronosRaw === null ? range.length : Math.min(chronosRaw, range.length);
+  const setChronosStep = useCallback((i: number) => setChronosRaw(i >= range.length ? null : Math.max(0, i)), [range.length]);
 
   const notify = useCallback((m: string) => {
     setToast(m);
@@ -207,6 +219,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
           return n;
         }),
       resetContext: () => setContext(null),
+      range,
       chronosStep,
       setChronosStep,
       inspectorTab,
@@ -232,7 +245,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
       toast,
       notify,
     }),
-    [history, headOid, status, stageLabel, error, result, runAnalysis, lens, selected, select, hovered, highlight, focusTick, fitTick, resetTick, depth, layers, context, chronosStep, inspectorTab, explorerOpen, inspectorOpen, agentOpen, packOpen, paletteOpen, view3d, showFps, sourceCompare, sourceLine, toast, notify],
+    [history, headOid, status, stageLabel, error, result, runAnalysis, lens, selected, select, hovered, highlight, focusTick, fitTick, resetTick, depth, layers, context, range, chronosStep, setChronosStep, inspectorTab, explorerOpen, inspectorOpen, agentOpen, packOpen, paletteOpen, view3d, showFps, sourceCompare, sourceLine, toast, notify],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

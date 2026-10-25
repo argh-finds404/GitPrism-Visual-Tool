@@ -60,10 +60,11 @@ export function writeTree(objects: Record<ObjectId, GitObject>, files: Record<st
 
 export function writeCommit(
   objects: Record<ObjectId, GitObject>,
-  input: { tree: ObjectId; parents: ObjectId[]; message: string; timestamp: number },
+  input: { tree: ObjectId; parents: ObjectId[]; message: string; timestamp: number; author?: string },
 ): ObjectId {
-  const oid = hashCommit({ tree: input.tree, parents: input.parents, message: input.message, author: AUTHOR, time: input.timestamp });
-  if (!objects[oid]) objects[oid] = { type: "commit", oid, author: AUTHOR, ...input };
+  const author = input.author ?? AUTHOR;
+  const oid = hashCommit({ tree: input.tree, parents: input.parents, message: input.message, author, time: input.timestamp });
+  if (!objects[oid]) objects[oid] = { type: "commit", oid, tree: input.tree, parents: input.parents, message: input.message, timestamp: input.timestamp, author };
   return oid;
 }
 
@@ -322,7 +323,7 @@ export function apply(prev: RepositoryState, cmd: RepositoryCommand): CommandRes
       const parentTree = getCommit(s, parent)?.tree;
       if (parent && parentTree === tree)
         return { ok: false, error: "Nothing is staged. The index matches the last commit, so a commit would record the same snapshot again." };
-      const oid = writeCommit(s.objects, { tree, parents: parent ? [parent] : [], message, timestamp: cmd.timestamp });
+      const oid = writeCommit(s.objects, { tree, parents: parent ? [parent] : [], message, timestamp: cmd.timestamp, author: cmd.author });
       if (s.head.type === "symbolic") s.branches[s.head.ref] = oid;
       else s.head = { type: "detached", oid };
       const branch = currentBranch(s);

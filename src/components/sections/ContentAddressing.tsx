@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { Link2, RotateCcw } from "lucide-react";
+import { Equal, Link2, RotateCcw, SplitSquareHorizontal } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
 import { Aurora } from "@/components/ui/Aurora";
 import { blobHeader, hashBlob, short } from "@/lib/git";
 import { usePrefersReducedMotion } from "@/lib/theme";
+import { InfoTip } from "@/components/ui/InfoTip";
+import { SmoothInput } from "@/components/ui/skiper-ui/skiper106";
 
 const START = "Hello GitPrism!";
 
@@ -32,15 +34,18 @@ function FileCard({
         </label>
         <span className="flex items-center gap-1.5 font-mono text-[0.72rem] text-ink-3">
           <span className="h-2 w-2 rounded-full" style={{ background: tone }} />
-          blob {short(oid)}
+          <InfoTip label="This file's blob ID. Edit a character and it changes completely, because the ID is made from the content.">
+            blob {short(oid)}
+          </InfoTip>
         </span>
       </div>
-      <input
+      <SmoothInput
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
-        className="mt-3 h-11 w-full rounded-xl border border-line-2 bg-paper px-3 font-mono text-[0.92rem] text-ink focus:border-violet focus:outline-none"
+        wrapperClassName="mt-3 bg-paper"
+        className="font-mono text-[0.92rem]"
       />
     </div>
   );
@@ -85,26 +90,45 @@ export function ContentAddressing() {
             </div>
 
             {/* Converging references */}
-            <svg viewBox="0 0 200 240" className="mx-auto hidden h-60 w-full lg:block" aria-hidden="true" preserveAspectRatio="none">
-              <motion.path
-                fill="none"
-                stroke="var(--violet)"
-                strokeWidth="1.5"
-                vectorEffect="non-scaling-stroke"
-                className="flow"
-                animate={{ d: same ? "M0 64 C 100 64, 100 120, 200 120" : "M0 64 C 100 64, 100 64, 200 64" }}
-                transition={spring}
-              />
-              <motion.path
-                fill="none"
-                stroke={same ? "var(--violet)" : "var(--magenta)"}
-                strokeWidth="1.5"
-                vectorEffect="non-scaling-stroke"
-                className="flow"
-                animate={{ d: same ? "M0 176 C 100 176, 100 120, 200 120" : "M0 176 C 100 176, 100 176, 200 176" }}
-                transition={spring}
-              />
-            </svg>
+            <div className="relative mx-auto hidden h-60 w-full lg:block">
+              <svg viewBox="0 0 200 240" className="h-full w-full" aria-hidden="true" preserveAspectRatio="none">
+                <motion.path
+                  fill="none"
+                  stroke="var(--violet)"
+                  strokeWidth="1.5"
+                  vectorEffect="non-scaling-stroke"
+                  className="flow"
+                  animate={{ d: same ? "M0 64 C 100 64, 100 120, 200 120" : "M0 64 C 100 64, 100 64, 200 64" }}
+                  transition={spring}
+                />
+                <motion.path
+                  fill="none"
+                  stroke={same ? "var(--violet)" : "var(--magenta)"}
+                  strokeWidth="1.5"
+                  vectorEffect="non-scaling-stroke"
+                  className="flow"
+                  animate={{ d: same ? "M0 176 C 100 176, 100 120, 200 120" : "M0 176 C 100 176, 100 176, 200 176" }}
+                  transition={spring}
+                />
+              </svg>
+              {/* Where the two paths meet (or don't): the verdict, right where the eye already is. */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={same ? "same" : "different"}
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={spring}
+                  className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 rounded-2xl border bg-surface px-3.5 py-3 text-center shadow-soft"
+                  style={{ borderColor: same ? "var(--violet)" : "var(--magenta)" }}
+                >
+                  {same ? <Equal size={18} className="text-violet" /> : <SplitSquareHorizontal size={18} className="text-magenta" />}
+                  <span className="whitespace-nowrap font-mono text-[0.68rem]" style={{ color: same ? "var(--violet-ink)" : "var(--magenta)" }}>
+                    {same ? "one object" : "two objects"}
+                  </span>
+                </motion.div>
+              </AnimatePresence>
+            </div>
 
             <div className="flex min-h-[18rem] flex-col justify-center gap-4">
               <AnimatePresence mode="popLayout" initial={false}>

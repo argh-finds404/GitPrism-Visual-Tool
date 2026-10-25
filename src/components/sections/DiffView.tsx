@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeftRight, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown, ChevronUp, GitCommitHorizontal } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
 import { Aurora } from "@/components/ui/Aurora";
 import { useLab, type Snapshot } from "@/components/lab/LabProvider";
 import { diffLines, hunkIds, short, type DiffLine } from "@/lib/git";
 
+/** A styled listbox: the browser's own open `<select>` can't be restyled, so this draws its own. */
 function SnapshotPicker({
   label,
   value,
@@ -20,26 +21,108 @@ function SnapshotPicker({
   snapshots: Snapshot[];
 }) {
   const id = `pick-${label}`;
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(() => Math.max(0, snapshots.findIndex((s) => s.oid === value)));
+  const wrap = useRef<HTMLDivElement>(null);
+  const current = snapshots.find((s) => s.oid === value) ?? snapshots[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  const commit = (i: number) => {
+    onChange(snapshots[i].oid);
+    setOpen(false);
+  };
+
+  const openList = () => {
+    setHighlight(Math.max(0, snapshots.findIndex((s) => s.oid === value)));
+    setOpen(true);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openList();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(snapshots.length - 1, h + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(0, h - 1));
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      commit(highlight);
+    }
+  };
+
   return (
-    <div className="min-w-0 flex-1">
+    <div className="relative min-w-0 flex-1" ref={wrap}>
       <label htmlFor={id} className="mb-1.5 block text-[0.8rem] text-ink-3">
         {label}
       </label>
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-11 w-full appearance-none truncate rounded-xl border border-line-2 bg-surface pl-3 pr-9 text-[0.9rem] text-ink focus:border-violet focus:outline-none"
-        >
-          {snapshots.map((s) => (
-            <option key={s.oid} value={s.oid}>
-              {short(s.oid)} {s.message}
-            </option>
-          ))}
-        </select>
-        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-3" />
-      </div>
+      <button
+        type="button"
+        id={id}
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={`${id}-list`}
+        onClick={() => (open ? setOpen(false) : openList())}
+        onKeyDown={onKeyDown}
+        className="flex h-11 w-full items-center gap-2.5 rounded-xl border border-line-2 bg-surface px-3 text-left transition-colors focus:border-violet focus:outline-none aria-expanded:border-violet aria-expanded:shadow-[0_0_0_3px_var(--violet-wash)]"
+      >
+        <GitCommitHorizontal size={15} className="shrink-0 text-violet" aria-hidden="true" />
+        <span className="shrink-0 font-mono text-[0.8rem] text-ink-3">{short(current.oid)}</span>
+        <span className="min-w-0 flex-1 truncate text-[0.88rem] text-ink">{current.message}</span>
+        <ChevronDown size={16} className={`shrink-0 text-ink-3 transition-transform duration-200 ${open ? "rotate-180 text-violet" : ""}`} aria-hidden="true" />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.ul
+            id={`${id}-list`}
+            role="listbox"
+            aria-label={label}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.16 }}
+            className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.45)]"
+          >
+            {snapshots.map((s, i) => (
+              <li key={s.oid}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={s.oid === value}
+                  onPointerEnter={() => setHighlight(i)}
+                  onClick={() => commit(i)}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[0.86rem] transition-colors ${
+                    i === highlight ? "bg-violet-wash text-ink" : "text-ink-2"
+                  }`}
+                >
+                  <span className="shrink-0 font-mono text-[0.76rem] text-ink-3">{short(s.oid)}</span>
+                  <span className="min-w-0 flex-1 truncate">{s.message}</span>
+                  {s.oid === value && <Check size={14} className="shrink-0 text-violet" aria-hidden="true" />}
+                </button>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

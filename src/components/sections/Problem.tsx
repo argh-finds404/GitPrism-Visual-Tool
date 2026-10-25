@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useInView } from "motion/react";
 import { Chapter } from "@/components/ui/Chapter";
 import { Aurora } from "@/components/ui/Aurora";
@@ -30,7 +30,10 @@ const script = [
 
 const questions = ["What did Git actually save?", "Where did the content go?", "Why is the old version still there?"];
 
-function Terminal() {
+const ease = [0.22, 1, 0.36, 1] as const;
+
+/** Types the session once it scrolls into view, then reports that the command has finished. */
+function Terminal({ onDone }: { onDone: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-20% 0px" });
   const reduce = usePrefersReducedMotion();
@@ -44,10 +47,17 @@ function Terminal() {
     const id = setInterval(() => {
       i += 1;
       setShown(i);
-      if (i >= total) clearInterval(id);
+      if (i >= total) {
+        clearInterval(id);
+        onDone();
+      }
     }, 28);
     return () => clearInterval(id);
-  }, [inView, reduce, total]);
+  }, [inView, reduce, total, onDone]);
+
+  useEffect(() => {
+    if (inView && reduce) onDone();
+  }, [inView, reduce, onDone]);
 
   const revealed = reduce && inView ? total : shown;
   const starts = script.map((_, i) => script.slice(0, i).reduce((n, l) => n + l.text.length, 0));
@@ -84,6 +94,16 @@ function Terminal() {
 }
 
 export function Problem() {
+  // The story waits for the command: questions, then the objects it wrote, then the verdict.
+  const [ran, setRan] = useState(false);
+  const done = useCallback(() => setRan(true), []);
+  const reduce = usePrefersReducedMotion();
+  const show = (delay: number) => ({
+    initial: false as const,
+    animate: ran ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 },
+    transition: { duration: reduce ? 0 : 0.6, delay: reduce ? 0 : delay, ease },
+  });
+
   return (
     <section id="problem" aria-labelledby="problem-title" className="relative overflow-hidden py-28 md:py-40">
       <Aurora tones={["violet", "magenta"]} />
@@ -100,10 +120,7 @@ export function Problem() {
             {questions.map((q, i) => (
               <motion.li
                 key={q}
-                initial={{ opacity: 0, x: -12 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10% 0px" }}
-                transition={{ delay: 0.5 + i * 0.35, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                {...show(0.15 + i * 0.35)}
                 className="flex items-baseline gap-4 border-b border-line pb-3 text-[1.15rem] text-ink"
               >
                 <span className="display text-2xl text-violet">?</span>
@@ -114,9 +131,11 @@ export function Problem() {
         </div>
 
         <div className="flex flex-col justify-end lg:col-span-6 lg:pl-6">
-          <Terminal />
-          <p className="mt-6 text-[0.85rem] text-ink-3">That one command wrote three objects. Hover to unseal them.</p>
-          <ul className="mt-2.5 grid grid-cols-3 gap-3">
+          <Terminal onDone={done} />
+          <motion.p {...show(1.3)} className="mt-6 text-[0.85rem] text-ink-3">
+            That one command wrote three objects. Hover to unseal them.
+          </motion.p>
+          <motion.ul {...show(1.45)} className="mt-2.5 grid grid-cols-3 gap-3" inert={!ran}>
             {sealed.map((o) => (
               <li key={o.kind}>
                 <a
@@ -127,8 +146,8 @@ export function Problem() {
                 >
                   <span
                     aria-hidden="true"
-                    className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-25 blur-2xl transition-opacity duration-500 group-hover:opacity-60"
-                    style={{ background: o.color }}
+                    className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-30 transition-opacity duration-500 group-hover:opacity-70"
+                    style={{ background: `radial-gradient(closest-side, ${o.color}, transparent)` }}
                   />
                   <svg width="18" height="18" viewBox="0 0 12 12" aria-hidden="true" className="relative">
                     {o.kind === "blob" && <circle cx="6" cy="6" r="4.8" fill={o.color} />}
@@ -147,10 +166,10 @@ export function Problem() {
                 </a>
               </li>
             ))}
-          </ul>
-          <p className="mt-10 display text-[clamp(1.8rem,3vw,2.5rem)] leading-tight text-ink">
+          </motion.ul>
+          <motion.p {...show(2.1)} className="mt-10 display text-[clamp(1.5rem,2.4vw,2.1rem)] leading-tight text-ink">
             The command worked. <span className="text-ink-3">The mental model is still missing.</span>
-          </p>
+          </motion.p>
         </div>
       </div>
     </section>

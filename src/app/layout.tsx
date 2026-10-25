@@ -1,13 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Martian_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// One variable family for display and interface (optical sizing keeps small text crisp),
-// plus a monospace for hashes, commands and diffs.
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
-  subsets: ["latin"],
-  axes: ["opsz", "wdth"],
+// Headlines are set like commit messages (Martian Mono, narrowed), body copy in Space Grotesk,
+// and hashes, commands and diffs in JetBrains Mono.
+const martian = Martian_Mono({ variable: "--font-martian", subsets: ["latin"], axes: ["wdth"] });
+const grotesk = localFont({
+  // Latin subset of SpaceGrotesk-Variable.ttf (the source file kept beside it), 32 KB instead of 137 KB.
+  src: "./fonts/SpaceGrotesk-Latin.woff",
+  variable: "--font-grotesk",
+  weight: "300 700",
+  display: "swap",
 });
 const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
 
@@ -35,7 +39,7 @@ const themeScript = `try{var t=localStorage.getItem("gp-theme");if(t!=="light"&&
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${bricolage.variable} ${jetbrains.variable} antialiased`}>
+    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${martian.variable} ${grotesk.variable} ${jetbrains.variable} antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

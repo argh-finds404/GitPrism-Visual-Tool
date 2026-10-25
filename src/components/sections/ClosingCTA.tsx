@@ -1,11 +1,11 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { motion } from "motion/react";
 import { usePrefersReducedMotion } from "@/lib/theme";
+import { LazyPrism } from "@/components/three/LazyPrism";
 
-const PrismScene = dynamic(() => import("@/components/three/PrismScene"), { ssr: false });
 
 export function ClosingCTA() {
   const reduce = usePrefersReducedMotion();
@@ -25,10 +25,19 @@ export function ClosingCTA() {
         />
         <div className="relative z-[1] flex flex-col justify-center px-6 pb-4 pt-16 md:px-14 lg:col-span-7 lg:py-20">
           <p className="mb-6 text-[0.95rem] text-lilac">Your next commit to understanding</p>
-          <h2 id="cta-title" className="display text-[clamp(3rem,7.4vw,6.6rem)]">
+          <h2 id="cta-title" className="display text-[clamp(2.4rem,5.2vw,4.8rem)]">
             Stop memorizing Git.
             <br />
-            <span className="spectrum-text shimmer">Start seeing it.</span>
+            {/* One sweep of the spectrum when the line arrives, instead of a loop that never stops. */}
+            <motion.span
+              className="spectrum-text"
+              initial={{ backgroundPosition: "100% 0" }}
+              whileInView={{ backgroundPosition: "0% 0" }}
+              viewport={{ once: true, margin: "-15% 0px" }}
+              transition={{ duration: reduce ? 0 : 1.6, ease: [0.22, 1, 0.36, 1] }}
+            >
+              Start seeing it.
+            </motion.span>
           </h2>
           <p className="mt-7 max-w-[32rem] text-[1.1rem] leading-relaxed text-ink-2">
             Explore the objects, snapshots and relationships behind every version of your code.
@@ -43,7 +52,7 @@ export function ClosingCTA() {
           </div>
         </div>
         <div className="relative h-[340px] lg:col-span-5 lg:h-auto">
-          <PrismScene variant="finale" background="#191720" reducedMotion={reduce} />
+          <LazyPrism variant="finale" background="#191720" reducedMotion={reduce} fadeEdges={false} />
         </div>
       </div>
     </section>

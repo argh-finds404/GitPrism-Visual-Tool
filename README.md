@@ -18,6 +18,8 @@ Then open the address printed in the terminal (usually http://localhost:3000):
 | Homepage | http://localhost:3000 |
 | Lab workbench | http://localhost:3000/lab |
 | PR Impact Studio | http://localhost:3000/review/gitprism-demo/acme-shop/pull/42 |
+| TimeFold | http://localhost:3000/timefold/gitprism-demo/acme-shop |
+| MergeLab | http://localhost:3000/mergelab/gitprism-demo/acme-shop |
 
 No page needs a database yet. The Prisma schema is ready for when accounts or sync are added; to use it later, copy `.env.example` to `.env` and set `DATABASE_URL`.
 
@@ -35,14 +37,18 @@ No page needs a database yet. The Prisma schema is ready for when accounts or sy
 | `/` | Story-driven landing page: 3D prism hero, then file → blob → tree → commit, a live snapshot demo, diffs, a history graph and content addressing |
 | `/lab` | Workbench: edit files, stage, commit, branch, inspect objects, compare, replay and guided challenges |
 | `/review/[owner]/[repo]/pull/[number]` | Impact Studio: what a pull request affects, across five 3D lenses, with evidence-backed findings |
+| `/mergelab/[owner]/[repo]` | MergeLab: a three-way merge workspace. Conflicts with base, ours and theirs, a semantic diff lens, a conflict constellation, resolution cards with undo and notes, then validation (parse, strict type check, tests) and patch export |
+| `/timefold/[owner]/[repo]` | TimeFold: travel through history. Function DNA follows one function commit by commit, Architecture drift replays the codebase graph, Regression hunt bisects with real test runs |
 
 The lab is local-first. It saves the actions you took in IndexedDB and rebuilds the repository by replaying them over the built-in sample, so a refresh never loses work. **Reset lab** clears it.
 
-The Impact Studio analyses a bundled fixture project (`gitprism-demo/acme-shop`, PR #42) in the browser. Other repositories need a GitHub or GitLab provider, which isn't connected yet; those URLs say so instead of showing invented data.
+The Impact Studio and TimeFold share a bundled fixture project, `gitprism-demo/acme-shop`: 13 commits on `main` (including a rename and a regression that is later fixed), then the 4 commits of PR #42 on `feat/auth`, plus a competing branch, `feat/sliding-sessions`, by a second author. Merging it into `feat/auth` gives three real conflicts around `validateSession`. The Studio analyses the PR in the browser; TimeFold analyses every commit against its parent. Other repositories need a GitHub or GitLab provider, which isn't connected yet; those URLs say so instead of showing invented data.
 
 ### What is real and what is simulated
 
-Real: blob, tree and commit objects are encoded byte-for-byte like Git, so their IDs match `git hash-object`. The tests rebuild the sample histories with real `git` and compare every ID. The Studio's imports, calls, tests, cycles and layer violations come from parsing the fixture's actual source.
+Real: blob, tree and commit objects are encoded byte-for-byte like Git, so their IDs match `git hash-object`. The tests rebuild the sample histories (including all 17 fixture commits) with real `git` and compare every ID. The Studio's and TimeFold's imports, calls, tests, cycles and layer violations come from parsing the fixture's actual source. TimeFold links a rename only when parameters and body are identical. Regression hunt really runs the chosen test: `POST /api/repos/:owner/:repo/run-test` strips the TypeScript with Node's built-in stripper and executes the committed fixture code in a fresh `node:vm` context with a 1-second limit. It accepts only fixture commit IDs and test names, never code.
+
+MergeLab's three-way merge is a diff3 with Git's default (zealous) refinements. The tests check it is byte-identical to `git merge-file` on the fixture and on 102 historical combinations, that the merge base matches `git merge-base`, and that the exported patch applies with `git apply`. Validation never executes code on the server: `POST /api/repos/:owner/:repo/merge-check` only parses (Node's TypeScript stripper) and type-checks (the TypeScript compiler, in memory). Tests run in a disposable Web Worker in your browser. Type errors that already exist on `feat/auth` are told apart from those the merge introduces. The merge commit shown after validation is computed, never written; nothing changes a branch.
 
 Simulated: the lab's working tree and index live in memory, and there is no merging, packing, remotes or `.git` directory. The Studio's Agent Hub uses built-in rules; live MCP connections need a server-side bridge that isn't included.
 
@@ -58,6 +64,20 @@ features/repository  ───────────────┘   commands
    RepositoryProvider  one source of truth for every lab panel
    session.ts          replays recorded commands (undo, replay, persistence)
    storage.ts          IndexedDB behind a swappable interface (database later)
+
+features/mergelab
+   diff3.ts            three-way line merge, refined like Git's zealous level
+   merge.ts            tree-level merge, resolutions, candidate buffer, patch export
+   semantic.ts         conflict placement, constellation, semantic lens, impact preview
+   checks.ts           parse and strict type check (server only, never executes)
+
+features/testing
+   harness.ts          module transform, expect, and the runner used by both test paths
+
+features/timefold
+   history.ts          per-commit snapshots, symbol lineage (exact renames), Function DNA, commit stories
+   test-runner.ts      runs one fixture test at one commit (server only)
+   bisect.ts           git-bisect state machine with skips and ambiguity
 
 features/impact-analysis
    fixture.ts          a real TypeScript project + PR, committed with the engine
@@ -92,9 +112,41 @@ src/
   features/
     repository/           Git engine, session replay, storage
     impact-analysis/      PR analysis pipeline
-  lib/                    git.ts, sample.ts, theme.ts, graph builders, prisma client
+  lib/                    git.ts, sample.ts, chapters.ts, theme.ts, graph builders, prisma client
   tests/                  Vitest suites (several compare against real git)
 prisma/schema.prisma      Workspace, GitObject, Ref
+```
+
+## Components from registries
+
+`components.json` registers the Skiper UI registry, so `npx shadcn add @skiper-ui/<name>` works here.
+Installed components land in `src/components/ui/skiper-ui/`.
+
+Two are in use, both adapted rather than taken as shipped:
+
+| Component | Used for | What changed |
+| --- | --- | --- |
+| `skiper101` | Tooltips on object IDs (`src/components/ui/InfoTip.tsx`) | Kept the border-drawn arrow; mapped shadcn's colour tokens onto this project's and replaced the tailwindcss-animate classes with a keyframe in `globals.css` |
+| `skiper106` | The animated caret on text inputs | Kept the caret measuring technique; dropped `dialkit` (a developer control panel drove its font size and spring) and `framer-motion` (this project already uses `motion`), and moved a module-level `navigator` read inside the component so pages still prerender |
+
+Re-running `shadcn add` with `--overwrite` restores the registry's demo versions and undoes those adaptations.
+
+**Pro components.** `skiper72`, `skiper86` and `skiper103` are Skiper UI Pro: the registry answers
+`401 Missing license key` without one. To install them, add your key to `.env.local`:
+
+```
+SKIPER_UI_LICENSE=your-key
+```
+
+then give the registry the header in `components.json`:
+
+```json
+"registries": {
+  "@skiper-ui": {
+    "url": "https://skiper-ui.com/r/{name}.json",
+    "headers": { "Authorization": "Bearer ${SKIPER_UI_LICENSE}" }
+  }
+}
 ```
 
 ## Design system
@@ -114,4 +166,6 @@ Dark-first ("Spectral Night"), with a light "Porcelain" theme. Tokens live in `s
 
 The five accent colours are the prism's spectrum: each one carries a fixed meaning, always paired with a shape (commit diamond, tree square, blob circle, reference pill).
 
-Type: **Bricolage Grotesque** (variable, optical sizing) for headlines and interface, **JetBrains Mono** for hashes, commands and diffs.
+Type: **Martian Mono** (narrowed with its width axis) for headlines, so every heading reads like a commit message; **Space Grotesk** (variable, bundled in `src/app/fonts/`) for body text and interface; **JetBrains Mono** for hashes, commands and diffs.
+
+The homepage is written as a log. Each chapter heading carries a real blob ID (`echo "chapter 1: the problem" | git hash-object --stdin`), a commit graph on the right edge marks the chapter in view on wide screens, and the footer lists the chapters as `git log --oneline --reverse`. The tests check these IDs against real git.

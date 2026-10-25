@@ -579,7 +579,7 @@ export default function ImpactScene(props: SceneProps) {
     <div className="relative h-full w-full">
       <Canvas
         camera={{ position: [0, 13, 24], fov: 45 }}
-        dpr={[1, 1.75]}
+        dpr={[1, 1.5]}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onPointerMissed={() => props.onHover(null)}
         fallback={<Scene2D {...props} />}

@@ -2,10 +2,12 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, Check, GitCommitHorizontal, RotateCcw, Save } from "lucide-react";
+import { ArrowUpRight, Check, GitCommitHorizontal, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
 import { Aurora } from "@/components/ui/Aurora";
 import { useLab } from "@/components/lab/LabProvider";
+import { InfoTip } from "@/components/ui/InfoTip";
+import { SmoothInput } from "@/components/ui/skiper-ui/skiper106";
 import { blobHeader, hashBlob, short, splitLines } from "@/lib/git";
 
 export function SnapshotLab() {
@@ -42,12 +44,19 @@ export function SnapshotLab() {
               </p>
             </Chapter>
           </div>
-          <p className="text-[0.88rem] text-ink-3 lg:col-span-5 lg:pb-2 lg:text-right">
-            A simulated repository running in your browser. IDs are real SHA-1, computed exactly as Git does.
-          </p>
+          <div className="lg:col-span-5 lg:flex lg:justify-end">
+            <span className="inline-flex items-start gap-2.5 rounded-2xl border border-line-2 bg-add-bg/40 px-4 py-3 text-[0.85rem] leading-snug text-ink-2">
+              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-add" aria-hidden="true" />
+              <span>
+                <span className="block font-medium text-ink">Real SHA-1, every keystroke.</span>
+                A simulated repository, running entirely in your browser.
+              </span>
+            </span>
+          </div>
         </div>
 
-        <div className="panel mt-14 grid overflow-hidden rounded-[28px] lg:grid-cols-12">
+        <div className="panel relative mt-10 grid overflow-hidden rounded-[28px] lg:grid-cols-12">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 z-[1] h-[2px] bg-[linear-gradient(90deg,var(--violet),var(--cyan))]" />
           {/* Editor */}
           <div className="flex flex-col border-b border-line lg:col-span-7 lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
@@ -91,7 +100,12 @@ export function SnapshotLab() {
 
             <div className="border-t border-line bg-paper-2/50 px-5 py-4">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[0.78rem]">
-                <span className="text-ink-3">blob ID if saved now</span>
+                <InfoTip
+                  className="text-ink-3"
+                  label="The ID this file's contents would get. Git hashes a short header plus the content, so the same bytes always land on the same ID."
+                >
+                  blob ID if saved now
+                </InfoTip>
                 <motion.span key={liveBlob} initial={{ opacity: 0.3 }} animate={{ opacity: 1 }} className="text-ink">
                   {liveBlob}
                 </motion.span>
@@ -113,13 +127,14 @@ export function SnapshotLab() {
                 <label htmlFor="lab-message" className="sr-only">
                   Snapshot message
                 </label>
-                <input
+                <SmoothInput
                   id="lab-message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Describe this snapshot"
                   maxLength={72}
-                  className="h-11 rounded-full sm:flex-1 border border-line-2 bg-surface px-4 text-[0.92rem] text-ink placeholder:text-ink-3 focus:border-violet focus:outline-none"
+                  wrapperClassName="rounded-full sm:flex-1"
+                  className="px-4 py-2.5 text-[0.92rem]"
                 />
                 <button type="submit" className="btn btn-primary btn-md justify-center">
                   <Save size={16} /> Save snapshot
@@ -180,6 +195,8 @@ export function SnapshotLab() {
                           )}
                         </span>
                         <span className="mt-1 flex flex-wrap gap-x-3 font-mono text-[0.72rem] text-ink-3">
+                          {/* No tooltip here: this row is itself a button, and a trigger inside it
+                              would nest one button in another. */}
                           <span>commit {short(s.oid)}</span>
                           <span>
                             blob {short(s.blob)}

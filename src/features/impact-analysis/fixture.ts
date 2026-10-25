@@ -2,7 +2,7 @@
 // are created with the GitPrism repository engine, so every commit ID is the
 // genuine SHA-1 of a Git commit object. Labelled as a fixture everywhere it shows.
 
-import { apply, blobContent, commitFiles, getCommit } from "@/features/repository/engine";
+import { ancestors, apply, blobContent, commitFiles, getCommit } from "@/features/repository/engine";
 import { emptyRepository } from "@/features/repository/sample";
 import type { RepositoryCommand, RepositoryState } from "@/features/repository/types";
 import type { Layer, LayerRule } from "./types";
@@ -15,7 +15,12 @@ export const FIXTURE = {
   source: "feat/auth",
   target: "main",
   author: "Ada Prism",
+  /** A second branch from the same base that competes with the PR. MergeLab merges it into `source`. */
+  incoming: "feat/sliding-sessions",
 };
+
+/** The other contributor, so the competing branch has its own author line. */
+const LIN = "Lin Okafor <lin@acme-shop.dev>";
 
 const T0 = 1767225600;
 
@@ -161,6 +166,135 @@ test("discounts large carts", () => {
 `,
 };
 
+/**
+ * How main reached `base`, one commit at a time. It includes a real rename
+ * (checkSession → validateSession) and a real regression: "Extract the discount
+ * rate" breaks the pricing test, and "Fix large-cart discount" repairs it.
+ * The last step must leave the files exactly equal to `base`.
+ */
+const mainCommits: { message: string; edit: (f: Record<string, string>) => void }[] = [
+  {
+    message: "Initial storefront",
+    edit: (f) => {
+      f["README.md"] = "# acme-shop\n\nA tiny storefront.\n";
+      f["src/infra/db.ts"] = base["src/infra/db.ts"];
+      f["src/orders/pricing.ts"] = `export function priceCart(items: { price: number; qty: number }[]) {
+  return items.reduce((sum, i) => sum + i.price * i.qty, 0);
+}
+`;
+    },
+  },
+  {
+    message: "Add order repository and service",
+    edit: (f) => {
+      f["src/orders/orders.repo.ts"] = base["src/orders/orders.repo.ts"];
+      f["src/orders/orders.service.ts"] = base["src/orders/orders.service.ts"];
+    },
+  },
+  {
+    message: "Sign and verify tokens",
+    edit: (f) => {
+      f["src/auth/tokens.ts"] = base["src/auth/tokens.ts"];
+    },
+  },
+  {
+    message: "Add sessions",
+    edit: (f) => {
+      f["src/auth/session.ts"] = `import { verifyToken } from "./tokens";
+
+export type Session = { userId: string; expiresAt: number };
+
+export function checkSession(token: string) {
+  const userId = verifyToken(token);
+  return userId ? { userId } : null;
+}
+
+export function createSession(userId: string, now: number) {
+  return { userId, expiresAt: now + 3600_000 };
+}
+`;
+      f["tests/session.test.ts"] = `import { createSession } from "../src/auth/session";
+
+test("creates a session for an hour", () => {
+  expect(createSession("u1", 0).expiresAt).toBe(3600000);
+});
+`;
+    },
+  },
+  {
+    message: "Rename checkSession to validateSession",
+    edit: (f) => {
+      f["src/auth/session.ts"] = f["src/auth/session.ts"].replace("function checkSession(", "function validateSession(");
+    },
+  },
+  {
+    message: "Discount large carts",
+    edit: (f) => {
+      f["src/orders/pricing.ts"] = base["src/orders/pricing.ts"];
+      f["tests/pricing.test.ts"] = base["tests/pricing.test.ts"];
+    },
+  },
+  {
+    message: "Expire sessions after an hour",
+    edit: (f) => {
+      f["src/auth/session.ts"] = base["src/auth/session.ts"];
+      f["tests/session.test.ts"] = base["tests/session.test.ts"];
+    },
+  },
+  {
+    message: "Add auth service, guard and account route",
+    edit: (f) => {
+      f["src/auth/auth.service.ts"] = base["src/auth/auth.service.ts"]
+        .replace('import { legacyLogin } from "./legacy";\n', "")
+        .replace("\nexport function loginLegacy(user: string) {\n  return legacyLogin(user);\n}\n", "");
+      f["src/api/middleware/auth-guard.ts"] = base["src/api/middleware/auth-guard.ts"];
+      f["src/api/routes/account.ts"] = base["src/api/routes/account.ts"];
+      f["tests/auth.service.test.ts"] = base["tests/auth.service.test.ts"];
+    },
+  },
+  {
+    message: "Add order routes",
+    edit: (f) => {
+      f["src/api/routes/orders.ts"] = base["src/api/routes/orders.ts"];
+    },
+  },
+  {
+    message: "Extract the discount rate",
+    edit: (f) => {
+      f["src/orders/pricing.ts"] = `const DISCOUNT_RATE = 0.1;
+
+export function priceCart(items: { price: number; qty: number }[]) {
+  return applyDiscount(items.reduce((sum, i) => sum + i.price * i.qty, 0));
+}
+
+export function applyDiscount(total: number) {
+  return total > 100 ? total * DISCOUNT_RATE : total;
+}
+`;
+    },
+  },
+  {
+    message: "Support legacy login",
+    edit: (f) => {
+      f["src/auth/legacy.ts"] = base["src/auth/legacy.ts"];
+      f["src/auth/auth.service.ts"] = base["src/auth/auth.service.ts"];
+    },
+  },
+  {
+    message: "Add local environment template",
+    edit: (f) => {
+      f[".env"] = base[".env"];
+      f["README.md"] = base["README.md"];
+    },
+  },
+  {
+    message: "Fix large-cart discount",
+    edit: (f) => {
+      f["src/orders/pricing.ts"] = base["src/orders/pricing.ts"];
+    },
+  },
+];
+
 /** The pull request, one commit at a time. */
 const prCommits: { message: string; edit: (f: Record<string, string>) => void }[] = [
   {
@@ -247,6 +381,38 @@ export function rotateToken(token: string, secret: string) {
   },
 ];
 
+/**
+ * feat/sliding-sessions, made from base by another contributor. It changes validateSession's
+ * signature differently from the PR and updates the same call sites, so merging the two
+ * branches conflicts for real. Its new test and README line merge cleanly.
+ */
+const incomingCommits: { message: string; edit: (f: Record<string, string>) => void }[] = [
+  {
+    message: "Slide session expiry on activity",
+    edit: (f) => {
+      f["src/auth/session.ts"] = f["src/auth/session.ts"]
+        .replace("export function validateSession(token: string, now: number) {", "export function validateSession(token: string, now: number, slide = false) {")
+        .replace("  return { userId, expiresAt: now + 3600_000 };", "  const ttl = slide ? 30 * 60_000 : 3600_000;\n  return { userId, expiresAt: now + ttl };")
+        .replace("const session = validateSession(token, Date.now());", "const session = validateSession(token, Date.now(), true);");
+      f["src/api/middleware/auth-guard.ts"] = f["src/api/middleware/auth-guard.ts"].replace(
+        "validateSession(token, Date.now())",
+        "validateSession(token, Date.now(), true)",
+      );
+    },
+  },
+  {
+    message: "Test sliding sessions",
+    edit: (f) => {
+      f["tests/session.test.ts"] += `
+test("slides expiry when asked", () => {
+  expect(validateSession("u1.sig", 0, true)?.expiresAt).toBe(1800000);
+});
+`;
+      f["README.md"] += "\nSessions slide on activity when the guard asks for it.\n";
+    },
+  },
+];
+
 /** Architecture configuration for the fixture. Shown verbatim in the UI. */
 export const LAYER_CONFIG: { source: string; layers: Layer[]; rules: LayerRule[] } = {
   source: "gitprism.layers.json",
@@ -262,7 +428,16 @@ export const LAYER_CONFIG: { source: string; layers: Layer[]; rules: LayerRule[]
   ],
 };
 
-export type FixtureCommit = { oid: string; message: string; timestamp: number; files: Record<string, string> };
+export type FixtureCommit = {
+  oid: string;
+  parents: string[];
+  message: string;
+  author: string;
+  timestamp: number;
+  /** The branch this commit was made on. */
+  lane: string;
+  files: Record<string, string>;
+};
 
 function run(s: RepositoryState, cmd: RepositoryCommand) {
   const r = apply(s, cmd);
@@ -280,32 +455,74 @@ function syncWorktree(s: RepositoryState, files: Record<string, string>) {
   return run(s, { type: "STAGE_PATHS", paths });
 }
 
-let cached: { base: FixtureCommit; commits: FixtureCommit[] } | null = null;
+let cached: {
+  base: FixtureCommit;
+  commits: FixtureCommit[];
+  main: FixtureCommit[];
+  all: FixtureCommit[];
+  incoming: FixtureCommit[];
+  mergeBase: string;
+} | null = null;
 
-/** base = tip of main; commits = the PR's commits, oldest first. */
+const DAY = 86400;
+
+/**
+ * base = tip of main; commits = the PR's commits, oldest first;
+ * main = main's history up to and including base; all = main then the PR, oldest first;
+ * incoming = the competing branch's commits; mergeBase = the best common ancestor of both branches.
+ */
 export function fixtureHistory() {
   if (cached) return cached;
   let s = emptyRepository(FIXTURE.repo);
-  s = syncWorktree(s, base);
-  s = run(s, { type: "COMMIT", message: "Storefront with sessions and orders", timestamp: T0 });
   const read = (oid: string) =>
     Object.fromEntries(Object.entries(commitFiles(s, oid)).map(([p, b]) => [p, blobContent(s, b) ?? ""]));
-  const toCommit = (oid: string): FixtureCommit => {
+  const toCommit = (oid: string, lane: string): FixtureCommit => {
     const c = getCommit(s, oid)!;
-    return { oid, message: c.message, timestamp: c.timestamp, files: read(oid) };
+    return { oid, parents: c.parents, message: c.message, author: c.author, timestamp: c.timestamp, lane, files: read(oid) };
   };
-  const baseCommit = toCommit(s.branches.main);
+
+  // Main: one commit every two days, ending at T0.
+  const files: Record<string, string> = {};
+  const main: FixtureCommit[] = [];
+  mainCommits.forEach((c, i) => {
+    c.edit(files);
+    s = syncWorktree(s, files);
+    s = run(s, { type: "COMMIT", message: c.message, timestamp: T0 - 2 * DAY * (mainCommits.length - 1 - i) });
+    main.push(toCommit(s.branches.main, FIXTURE.target));
+  });
+  const baseCommit = main.at(-1)!;
+  const drift = [...new Set([...Object.keys(base), ...Object.keys(baseCommit.files)])].filter((p) => base[p] !== baseCommit.files[p]);
+  if (drift.length) throw new Error(`Fixture main history does not end at base: ${drift.join(", ")}`);
+
   s = run(s, { type: "CREATE_BRANCH", name: FIXTURE.source, at: s.branches.main });
   s = run(s, { type: "SWITCH_BRANCH", name: FIXTURE.source });
-  const files = { ...base };
   const commits: FixtureCommit[] = [];
   prCommits.forEach((c, i) => {
     c.edit(files);
     s = syncWorktree(s, files);
     s = run(s, { type: "COMMIT", message: c.message, timestamp: T0 + 3600 * (i + 1) });
-    commits.push(toCommit(s.branches[FIXTURE.source]));
+    commits.push(toCommit(s.branches[FIXTURE.source], FIXTURE.source));
   });
-  cached = { base: baseCommit, commits };
+
+  // The competing branch starts from base too, made by another contributor.
+  s = run(s, { type: "CREATE_BRANCH", name: FIXTURE.incoming, at: baseCommit.oid });
+  s = run(s, { type: "SWITCH_BRANCH", name: FIXTURE.incoming });
+  const theirs = { ...baseCommit.files };
+  const incoming: FixtureCommit[] = [];
+  incomingCommits.forEach((c, i) => {
+    c.edit(theirs);
+    s = syncWorktree(s, theirs);
+    s = run(s, { type: "COMMIT", message: c.message, timestamp: T0 + 1800 + 3600 * i, author: LIN });
+    incoming.push(toCommit(s.branches[FIXTURE.incoming], FIXTURE.incoming));
+  });
+
+  // Best common ancestor: a shared ancestor that no other shared ancestor descends from.
+  const a = ancestors(s, s.branches[FIXTURE.source]);
+  const b = ancestors(s, s.branches[FIXTURE.incoming]);
+  const common = [...a].filter((x) => b.has(x));
+  const mergeBase = common.find((x) => !common.some((y) => y !== x && ancestors(s, y).has(x)))!;
+
+  cached = { base: baseCommit, commits, main, all: [...main, ...commits], incoming, mergeBase };
   return cached;
 }
 

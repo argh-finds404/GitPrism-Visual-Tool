@@ -1,5 +1,6 @@
 import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
+import { LogRail } from "@/components/site/LogRail";
 import { LabProvider } from "@/components/lab/LabProvider";
 import { Hero } from "@/components/sections/Hero";
 import { Problem } from "@/components/sections/Problem";
@@ -22,6 +23,7 @@ export default function Home() {
         Skip to content
       </a>
       <Nav />
+      <LogRail />
       <main>
         <Hero />
         <Problem />

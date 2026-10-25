@@ -8,6 +8,7 @@ import { Aurora } from "@/components/ui/Aurora";
 import { blobHeader, short } from "@/lib/git";
 import { blobs, commits, files, srcEntries, srcTree, tree, treeEntries, treeText } from "@/lib/sample";
 import { usePrefersReducedMotion } from "@/lib/theme";
+import { useAutoCycle } from "@/lib/useAutoCycle";
 
 /* ------------------------------------------------------------------ */
 /* Story                                                               */
@@ -105,7 +106,7 @@ const KIND: Record<Id, Kind> = {
 const WIDTH: Record<Id, number> = { file: 40, blobHello: 23, blobNotes: 23, blobApp: 23, tree: 27, src: 23, c1: 21, c2: 29, c3: 21 };
 
 /** Where each object sits at each step (percent of the stage). Missing means hidden. */
-function layout(step: number, sub: number): Partial<Record<Id, Place>> {
+function layout(step: number, third: boolean): Partial<Record<Id, Place>> {
   switch (step) {
     case 0:
       return { file: { x: 50, y: 50, scale: 1.12 } };
@@ -123,7 +124,7 @@ function layout(step: number, sub: number): Partial<Record<Id, Place>> {
       return {
         c1: { x: 13, y: 9 },
         c2: { x: 50, y: 9 },
-        ...(sub > 0.35 ? { c3: { x: 87, y: 9 } } : {}),
+        ...(third ? { c3: { x: 87, y: 9 } } : {}),
         tree: { x: 50, y: 34 },
         blobHello: { x: 16, y: 60 },
         blobNotes: { x: 50, y: 60 },
@@ -270,7 +271,9 @@ export function Transformation() {
   const cards = useRef(new Map<Id, HTMLElement>());
   const reduce = usePrefersReducedMotion();
   const [step, setStep] = useState(0);
-  const [sub, setSub] = useState(0);
+  // In the history step, the third commit appears a third of the way through. Only the crossing
+  // matters, so scrolling sets state twice at most instead of on every frame.
+  const [third, setThird] = useState(false);
   const [hover, setHover] = useState<Id | null>(null);
   const [selected, setSelected] = useState<Id | null>(null);
   const [paused, setPaused] = useState(false);
@@ -282,8 +285,8 @@ export function Transformation() {
     const raw = Math.min(3.999, Math.max(0, p * 4.1 - 0.05));
     const s = Math.floor(raw);
     if (s !== step) setStep(s);
-    const nextSub = s === 3 ? raw - 3 : 0;
-    if (!paused && Math.abs(nextSub - sub) > 0.02) setSub(nextSub);
+    const nextThird = s === 3 && raw - 3 > 0.35;
+    if (!paused && nextThird !== third) setThird(nextThird);
   });
 
   // Connectors are drawn in pixels, so track the stage size.
@@ -295,7 +298,16 @@ export function Transformation() {
     return () => ro.disconnect();
   }, []);
 
-  const places = layout(step, sub);
+  const places = layout(step, third);
+
+  // Unpausing catches up with wherever the scroll went in the meantime.
+  const togglePause = () => {
+    if (paused) {
+      const raw = Math.min(3.999, Math.max(0, scrollYProgress.get() * 4.1 - 0.05));
+      setThird(Math.floor(raw) === 3 && raw - 3 > 0.35);
+    }
+    setPaused(!paused);
+  };
 
   // Card heights, so connectors meet card edges instead of disappearing under them.
   // A ResizeObserver reports them whenever a card mounts or changes size.
@@ -321,7 +333,12 @@ export function Transformation() {
   };
   useEffect(() => () => heightObserver.current?.disconnect(), []);
 
-  const focus = hover ?? selected;
+  // When nobody is pointing at anything, trace the diagram on its own, so the relationships
+  // are seen without requiring a hover. Any real interaction (hover, select, pause) takes over.
+  const visibleIds = useMemo(() => Object.keys(places) as Id[], [places]);
+  const autoplayOn = !reduce && !paused && hover === null && selected === null;
+  const autoIndex = useAutoCycle(visibleIds.length, autoplayOn, 2200);
+  const focus = hover ?? selected ?? (autoplayOn ? visibleIds[autoIndex] : null);
   const related = useMemo(() => (focus ? neighbours(focus) : null), [focus]);
 
   const px = (p: Place) => ({ x: (p.x / 100) * size.w, y: (p.y / 100) * size.h });
@@ -628,10 +645,10 @@ export function Transformation() {
                     {k}
                   </li>
                 ))}
-                <li className="hidden sm:block">Hover to trace, click to open.</li>
+                <li className="hidden sm:block">{focus && !hover && !selected ? "Tracing on its own — hover or click to take over." : "Hover to trace, click to open."}</li>
               </ul>
               <div className="flex gap-2">
-                <button type="button" className="chip" onClick={() => setPaused((p) => !p)} aria-pressed={paused}>
+                <button type="button" className="chip" onClick={togglePause} aria-pressed={paused}>
                   {paused ? <Play size={13} /> : <Pause size={13} />}
                   {paused ? "Resume" : "Pause"}
                 </button>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowUpRight, Menu, Moon, Sun, X } from "lucide-react";
 import { Wordmark } from "@/components/brand/PrismMark";
 import { setTheme, useTheme } from "@/lib/theme";
@@ -11,6 +11,8 @@ const links = [
   { href: "#playground", label: "Explore" },
   { href: "#how", label: "How it works" },
   { href: "#learn", label: "Learn" },
+  { href: "/timefold/gitprism-demo/acme-shop", label: "TimeFold" },
+  { href: "/mergelab/gitprism-demo/acme-shop", label: "MergeLab" },
   { href: "/review/gitprism-demo/acme-shop/pull/42", label: "PR Studio" },
 ];
 
@@ -43,12 +45,15 @@ export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
+  // One shared scroll value: the hairline reads it directly (no re-render), and the
+  // solid background flips only when crossing 24px.
+  const { scrollY, scrollYProgress } = useScroll();
+  useMotionValueEvent(scrollY, "change", (y) => setScrolled(y > 24));
+  // The page can load already scrolled (restored position, #anchor links); check on the first frame.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const id = requestAnimationFrame(() => setScrolled(scrollY.get() > 24));
+    return () => cancelAnimationFrame(id);
+  }, [scrollY]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,20 +70,28 @@ export function Nav() {
     <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 md:px-6 md:pt-4">
       <nav
         aria-label="Primary"
-        className={`mx-auto flex h-14 max-w-[1240px] items-center justify-between rounded-full pl-5 pr-2 transition-[background-color,box-shadow,border-color,backdrop-filter] duration-500 ${
-          scrolled
-            ? "border border-line bg-[color-mix(in_oklab,var(--paper)_78%,transparent)] shadow-soft backdrop-blur-xl"
-            : "border border-transparent bg-transparent"
+        className={`relative mx-auto flex h-14 max-w-[1240px] items-center justify-between rounded-full pl-5 pr-2 transition-[background-color,box-shadow,border-color] duration-500 ${
+          scrolled ? "border border-line bg-[color-mix(in_oklab,var(--paper)_95%,transparent)] shadow-soft" : "border border-transparent bg-transparent"
         }`}
       >
+        {/* Reading progress, as a beam of the spectrum along the bar's lower edge. */}
+        <motion.span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-6 bottom-0 h-px origin-left"
+          style={{
+            scaleX: scrollYProgress,
+            opacity: scrolled ? 1 : 0,
+            background: "linear-gradient(90deg, var(--violet), var(--magenta), var(--amber), var(--cyan))",
+          }}
+        />
         <a href="#top" aria-label="GitPrism home" className="rounded-full">
           <Wordmark />
         </a>
 
-        <ul className="hidden items-center gap-1 md:flex">
+        <ul className="hidden items-center gap-0.5 lg:flex">
           {links.map((l) => (
             <li key={l.href}>
-              <Link href={l.href} className="rounded-full px-4 py-2 text-[0.92rem] text-ink-2 transition-colors hover:text-ink">
+              <Link href={l.href} className="whitespace-nowrap rounded-full px-3 py-2 text-[0.92rem] text-ink-2 transition-colors hover:text-ink xl:px-4">
                 {l.label}
               </Link>
             </li>
@@ -94,7 +107,7 @@ export function Nav() {
           </span>
           <button
             type="button"
-            className="grid h-11 w-11 place-items-center rounded-full text-ink md:hidden"
+            className="grid h-11 w-11 place-items-center rounded-full text-ink lg:hidden"
             aria-label="Open menu"
             aria-expanded={open}
             aria-controls="mobile-nav"
@@ -112,7 +125,7 @@ export function Nav() {
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
-            className="fixed inset-0 z-50 flex flex-col bg-paper px-5 pt-4 md:hidden"
+            className="fixed inset-0 z-50 flex flex-col bg-paper px-5 pt-4 lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

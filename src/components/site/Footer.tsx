@@ -1,37 +1,88 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
-import { ArrowUp, ArrowUpRight } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ArrowUp, ArrowUpRight, Check, Copy } from "lucide-react";
 import { Wordmark } from "@/components/brand/PrismMark";
+import { hashBlob } from "@/lib/git";
+import { CHAPTERS } from "@/lib/chapters";
+import { HashText } from "@/components/ui/HashText";
 
-const STORY_LINKS = [
-  { n: "01", label: "The Problem", href: "#problem" },
-  { n: "02", label: "The Reveal", href: "#how" },
-  { n: "03", label: "The Lab", href: "#playground" },
-  { n: "04", label: "The Difference", href: "#diff" },
-  { n: "05", label: "History Graph", href: "#history" },
-  { n: "06", label: "Content Addressing", href: "#identity" },
+const STUDIO = "/review/gitprism-demo/acme-shop/pull/42";
+
+const DESTINATIONS = [
+  { href: "/lab", title: "Lab workbench", line: "Edit, stage, commit and branch in a repository that lives in your browser.", color: "var(--cyan)" },
+  { href: "/timefold/gitprism-demo/acme-shop", title: "TimeFold", line: "Follow one function through history and bisect a regression with real tests.", color: "var(--amber)" },
+  { href: STUDIO, title: "PR Impact Studio", line: "See what one pull request touches, in five 3D lenses.", color: "var(--magenta)" },
+  { href: "/mergelab/gitprism-demo/acme-shop", title: "MergeLab", line: "Resolve a three-way merge, then validate it before you export it.", color: "var(--add)" },
 ];
 
-const PLUMBING_LINKS = [
-  { label: "Git Internals (Pro Git)", href: "https://git-scm.com/book/en/v2/Git-Internals-Git-Objects" },
+const REFERENCES = [
+  { label: "Pro Git: Git objects", href: "https://git-scm.com/book/en/v2/Git-Internals-Git-Objects" },
   { label: "git hash-object", href: "https://git-scm.com/docs/git-hash-object" },
   { label: "git cat-file", href: "https://git-scm.com/docs/git-cat-file" },
-  { label: "Git Glossary", href: "https://git-scm.com/docs/gitglossary" },
+  { label: "Git glossary", href: "https://git-scm.com/docs/gitglossary" },
 ];
 
-const INTERNALS_LINKS = [
-  { label: "Bit-Exact SHA-1 Engine", href: "#identity" },
-  { label: "Local-First IndexedDB", href: "/lab" },
-  { label: "PR Impact Studio", href: "/review/gitprism-demo/acme-shop/pull/42" },
-  { label: "Five 3D Analysis Lenses", href: "/review/gitprism-demo/acme-shop/pull/42" },
-];
+/** `echo "<text>" | git hash-object --stdin`, computed live. echo adds the trailing newline. */
+function Hasher() {
+  const [text, setText] = useState("hello, git");
+  const [copied, setCopied] = useState(false);
+  const oid = useMemo(() => hashBlob(`${text}\n`), [text]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(oid);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be blocked; the ID stays selectable.
+    }
+  };
+
+  return (
+    <div className="panel rounded-2xl p-5 md:p-6">
+      <p className="font-mono text-[0.78rem] text-ink-3">try it: name anything the way Git would</p>
+      <label htmlFor="footer-hash" className="mt-4 flex items-center gap-2 rounded-xl border border-line-2 bg-paper px-3 py-2.5 font-mono text-[0.86rem] focus-within:border-violet">
+        <span className="select-none text-violet-ink">$ echo &quot;</span>
+        <input
+          id="footer-hash"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+          maxLength={80}
+          className="min-w-0 flex-1 bg-transparent text-ink outline-none"
+          aria-label="Text to hash"
+        />
+        <span className="select-none text-violet-ink">&quot;</span>
+      </label>
+      <p className="mt-2 font-mono text-[0.78rem] text-ink-3">| git hash-object --stdin</p>
+      <div className="mt-4 flex items-center gap-3">
+        <output htmlFor="footer-hash" aria-live="polite" className="min-w-0 flex-1 break-all font-mono text-[0.86rem] leading-relaxed text-ink-2">
+          <span className="text-amber">{oid.slice(0, 7)}</span>
+          {oid.slice(7)}
+        </output>
+        <button
+          type="button"
+          onClick={copy}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line-2 text-ink-2 transition-colors hover:border-violet hover:text-violet-ink"
+          aria-label={copied ? "Copied" : "Copy object ID"}
+        >
+          {copied ? <Check size={15} /> : <Copy size={15} />}
+        </button>
+      </div>
+      <p className="mt-4 text-[0.86rem] leading-relaxed text-ink-3">
+        Change one character and the whole ID changes. Run the same command in a terminal and you&apos;ll get this exact ID.
+      </p>
+    </div>
+  );
+}
 
 export function Footer() {
   const mark = useRef<HTMLDivElement>(null);
 
-  // The oversized wordmark catches the light spectrum where the pointer moves
+  // The oversized wordmark catches the spectrum where the pointer moves.
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = mark.current;
     if (!el) return;
@@ -45,128 +96,102 @@ export function Footer() {
     window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
   };
 
+  const head = CHAPTERS[CHAPTERS.length - 1];
+
   return (
-    <footer className="relative overflow-hidden pt-20 border-t border-line/70">
-      {/* Prismatic hairline refraction glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, var(--violet) 25%, var(--cyan) 50%, var(--magenta) 75%, transparent 100%)",
-          opacity: 0.7,
-        }}
-      />
+    <footer className="relative overflow-hidden border-t border-line/70 pt-20">
+      <div aria-hidden="true" className="rule-spectrum pointer-events-none absolute inset-x-0 top-0" />
 
       <div className="shell">
-        {/* Main Clean Asymmetric Grid */}
-        <div className="grid gap-12 pb-16 lg:grid-cols-12">
-          {/* Brand & Manifesto Column (Left 5 Cols) */}
-          <div className="space-y-6 lg:col-span-5">
-            <div className="flex items-center gap-3">
+        <div className="grid gap-12 pb-16 lg:grid-cols-12 lg:gap-10">
+          <div className="min-w-0 lg:col-span-7">
+            <div className="flex flex-wrap items-center gap-3">
               <Wordmark />
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper-2 px-2.5 py-0.5 font-mono text-[11px] text-ink-3">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-add" />
+                <span className="h-1.5 w-1.5 rounded-full bg-add" />
                 local-first
               </span>
             </div>
-
-            <p className="max-w-[24rem] text-[0.95rem] leading-relaxed text-ink-2">
-              Git makes sense when you can see it. An interactive exploration of blobs, trees, snapshots, and
-              the spacetime of code.
+            <p className="mt-5 max-w-[30rem] text-[0.98rem] leading-relaxed text-ink-2">
+              Git makes sense when you can see it. Six chapters, one repository, every ID computed for real.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Link href="/lab" className="btn btn-primary btn-sm group">
-                <span>Open Lab Workbench</span>
-                <ArrowUpRight size={15} className="btn-arrow" />
-              </Link>
-
-              <Link href="/review/gitprism-demo/acme-shop/pull/42" className="btn btn-ghost btn-sm group">
-                <span>PR Review Studio</span>
-                <ArrowUpRight size={15} className="btn-arrow" />
-              </Link>
-            </div>
+            {/* The story, as the log of the page you just read. */}
+            <nav aria-label="Chapters" className="mt-10">
+              <p className="font-mono text-[0.78rem] text-ink-3">$ git log --oneline --reverse</p>
+              <ol className="relative mt-4">
+                <span aria-hidden="true" className="absolute bottom-3 left-[5px] top-3 w-px bg-line-2" />
+                {CHAPTERS.map((c) => (
+                  <li key={c.n}>
+                    <a
+                      href={`#${c.anchor}`}
+                      className="group relative flex items-center gap-3 rounded-lg py-1.5 pr-2 font-mono text-[0.86rem] transition-colors hover:bg-surface/60"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true" className="relative shrink-0 transition-transform group-hover:scale-125">
+                        <path d="M6 .8 11.2 6 6 11.2.8 6Z" fill={c.color} />
+                      </svg>
+                      <HashText value={c.id} delay={c.n * 70} className="text-amber" />
+                      {c === head && (
+                        <span className="shrink-0 whitespace-nowrap rounded-full border border-[color:var(--c-ref)] px-2 text-[0.72rem] text-[color:var(--c-ref)]">
+                          HEAD → main
+                        </span>
+                      )}
+                      <span className="truncate text-ink-2 group-hover:text-ink">
+                        chapter {c.n}: {c.name}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
           </div>
 
-          {/* Navigation Columns (Right 7 Cols) */}
-          <nav aria-label="Footer" className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-7">
-            {/* Story Chapters */}
-            <div>
-              <h3 className="font-mono text-[11px] uppercase tracking-wider text-ink-3">
-                The Story
-              </h3>
-              <ul className="mt-4 space-y-2.5">
-                {STORY_LINKS.map((item) => (
-                  <li key={item.n}>
-                    <a
-                      href={item.href}
-                      className="group flex items-center gap-2 text-[0.88rem] text-ink-2 transition-colors hover:text-violet-ink"
-                    >
-                      <span className="font-mono text-[10px] text-ink-3 group-hover:text-violet-ink">
-                        {item.n}
-                      </span>
-                      <span>{item.label}</span>
+          <div className="min-w-0 space-y-4 lg:col-span-5">
+            <Hasher />
+            {DESTINATIONS.map((d) => (
+              <Link
+                key={d.href}
+                href={d.href}
+                className="group flex items-center gap-4 rounded-2xl border border-line p-4 transition-[border-color,box-shadow] hover:shadow-[0_14px_40px_-22px_var(--dest)]"
+                style={{ ["--dest" as string]: d.color }}
+              >
+                <span className="h-9 w-1 shrink-0 rounded-full" style={{ background: d.color }} aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-ink">{d.title}</span>
+                  <span className="block text-[0.85rem] leading-snug text-ink-3">{d.line}</span>
+                </span>
+                <ArrowUpRight size={17} className="shrink-0 text-ink-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-ink" />
+              </Link>
+            ))}
+            <details className="group rounded-2xl border border-line px-4 py-3">
+              <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[0.8rem] text-ink-3 [&::-webkit-details-marker]:hidden">
+                Read the source material
+                <span className="transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+              </summary>
+              <ul className="mt-3 space-y-2 pb-1">
+                {REFERENCES.map((r) => (
+                  <li key={r.href}>
+                    <a href={r.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[0.88rem] text-ink-2 hover:text-violet-ink">
+                      {r.label}
+                      <ArrowUpRight size={12} className="opacity-50" />
                     </a>
                   </li>
                 ))}
               </ul>
-            </div>
-
-            {/* Git Plumbing Specs */}
-            <div>
-              <h3 className="font-mono text-[11px] uppercase tracking-wider text-ink-3">
-                Plumbing Specs
-              </h3>
-              <ul className="mt-4 space-y-2.5">
-                {PLUMBING_LINKS.map((item) => (
-                  <li key={item.label}>
-                    <a
-                      href={item.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex items-center gap-1 text-[0.88rem] text-ink-2 transition-colors hover:text-violet-ink"
-                    >
-                      <span>{item.label}</span>
-                      <ArrowUpRight size={12} className="opacity-40 transition-opacity group-hover:opacity-100" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Architecture / Internals */}
-            <div>
-              <h3 className="font-mono text-[11px] uppercase tracking-wider text-ink-3">
-                Architecture
-              </h3>
-              <ul className="mt-4 space-y-2.5">
-                {INTERNALS_LINKS.map((item) => (
-                  <li key={item.label}>
-                    <Link href={item.href} className="text-[0.88rem] text-ink-2 transition-colors hover:text-violet-ink">
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </nav>
+            </details>
+          </div>
         </div>
       </div>
 
-      {/* Giant Optical Spectrum Wordmark */}
       <div
         ref={mark}
         onPointerMove={onMove}
         aria-hidden="true"
-        className="relative select-none overflow-hidden px-4 pt-10 pb-4 border-t border-line/40"
+        className="relative select-none overflow-hidden border-t border-line/40 px-4 pb-3 pt-10"
         style={{ ["--mx" as string]: "50%", ["--my" as string]: "50%" }}
       >
-        <div className="text-center font-mono text-[10px] tracking-[0.3em] uppercase text-ink-3/70 mb-2">
-          Light in • Spectral history out
-        </div>
         <div
-          className="display text-center text-[clamp(5.5rem,23vw,21rem)] leading-[0.8] tracking-[-0.04em]"
+          className="display whitespace-nowrap text-center text-[clamp(3rem,15.5vw,15rem)] leading-[0.85]"
           style={{
             backgroundImage:
               "radial-gradient(32rem circle at var(--mx) var(--my), var(--magenta) 0%, var(--violet) 32%, var(--cyan) 60%, transparent 82%), linear-gradient(var(--line-2), var(--line-2))",
@@ -179,24 +204,17 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Baseline Utility Strip */}
       <div className="border-t border-line/60 bg-paper-2/40 py-5">
         <div className="shell flex flex-col items-center justify-between gap-4 text-[0.8rem] text-ink-3 sm:flex-row">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <p>© 2026 GitPrism. Built to make Git visible.</p>
-            <span className="hidden text-line-2 sm:inline">•</span>
-            <p className="text-[0.76rem]">
-              Git® is a trademark of Software Freedom Conservancy.
-            </p>
-          </div>
-
+          <p>
+            © 2026 GitPrism. Git® is a trademark of the Software Freedom Conservancy.
+          </p>
           <button
             type="button"
             onClick={scrollToTop}
-            className="group flex items-center gap-1.5 rounded-full border border-line-2 bg-surface px-3 py-1 text-[12px] font-medium text-ink-2 shadow-sm transition-all hover:border-violet hover:text-violet-ink hover:shadow"
-            aria-label="Scroll smoothly to the top of the page"
+            className="group flex items-center gap-1.5 rounded-full border border-line-2 bg-surface px-3 py-1 font-mono text-[12px] text-ink-2 transition-colors hover:border-violet hover:text-violet-ink"
           >
-            <span>Back to top</span>
+            Back to top
             <ArrowUp size={13} className="transition-transform group-hover:-translate-y-0.5" />
           </button>
         </div>

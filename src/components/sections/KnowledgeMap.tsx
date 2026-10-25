@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { AnimatePresence, motion, useInView } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import { Aurora } from "@/components/ui/Aurora";
+import { usePrefersReducedMotion } from "@/lib/theme";
+import { useAutoCycle } from "@/lib/useAutoCycle";
 
 type TopicKey = "objects" | "history" | "diffs" | "storage";
 
@@ -93,8 +96,17 @@ const byId = new Map(concepts.map((c) => [c.id, c]));
 const colorOf = (t: TopicKey) => topics.find((x) => x.key === t)!.color;
 
 export function KnowledgeMap() {
-  const [active, setActive] = useState<TopicKey | null>(null);
+  const reduce = usePrefersReducedMotion();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(panelRef, { margin: "-10% 0px" });
+  // Real hover/focus always wins; with nobody pointing at anything, the map demonstrates
+  // itself by cycling through each area, so the connections are seen without being hovered.
+  const [hover, setHover] = useState<TopicKey | null>(null);
+  const autoIndex = useAutoCycle(topics.length, inView && !reduce && hover === null, 2600);
+  const active = hover ?? (inView && !reduce ? topics[autoIndex].key : null);
+  const auto = active !== null && hover === null;
   const isLit = (t: TopicKey) => !active || active === t;
+  const shownTopic = active ? topics.find((t) => t.key === active)! : null;
 
   return (
     <section id="learn" aria-labelledby="learn-title" className="relative overflow-hidden bg-paper-2 py-28 md:py-36">
@@ -105,24 +117,48 @@ export function KnowledgeMap() {
             Everything in Git connects. Explore it as a map.
           </h2>
           <p className="max-w-[30rem] text-[1.04rem] leading-relaxed text-ink-2 lg:col-span-5">
-            Four areas, one model. Hover an area to see which ideas it touches, then open the topic to go deeper.
+            Four areas, one model, demonstrating itself below. Hover an area to take over, then open the topic to go deeper.
           </p>
         </div>
 
         <div
-          className="panel relative mt-14 overflow-hidden rounded-[32px] lg:aspect-[16/9]"
-          onPointerLeave={() => setActive(null)}
+          ref={panelRef}
+          className="panel relative mt-8 overflow-hidden rounded-[32px] lg:aspect-[16/9]"
+          onPointerLeave={() => setHover(null)}
         >
+          {/* Names, right now, whatever is lit below: the map's own caption instead of a separate block of text. */}
+          <AnimatePresence mode="wait">
+            {shownTopic && (
+              <motion.div
+                key={shownTopic.key}
+                initial={reduce ? false : { opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="absolute left-5 top-5 z-10 hidden max-w-[15rem] items-start gap-2.5 rounded-xl border bg-surface/90 px-3.5 py-2.5 shadow-soft backdrop-blur-sm lg:flex"
+                style={{ borderColor: `color-mix(in oklab, ${shownTopic.color} 45%, var(--line))` }}
+              >
+                <span className="mt-0.5 h-2 w-2 shrink-0 rotate-45 rounded-[2px]" style={{ background: shownTopic.color }} aria-hidden="true" />
+                <span>
+                  <span className="flex items-center gap-1.5 text-[0.85rem] font-medium text-ink">
+                    {shownTopic.title}
+                    {auto && <span className="rounded-full bg-[color:var(--add)]/15 px-1.5 py-px font-mono text-[0.62rem] font-normal text-[color:var(--add)]">auto</span>}
+                  </span>
+                  <span className="mt-0.5 block text-[0.76rem] leading-snug text-ink-3">{shownTopic.body}</span>
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
           {/* Each area glows in its own colour; the active one brightens. */}
           <div aria-hidden="true" className="absolute inset-0 hidden lg:block">
             {topics.map((t) => (
               <span
                 key={t.key}
-                className="absolute h-[70%] w-[50%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-opacity duration-500"
+                className="absolute h-[70%] w-[50%] -translate-x-1/2 -translate-y-1/2 rounded-full transition-opacity duration-500"
                 style={{
                   left: `${t.anchor.x}%`,
                   top: `${t.anchor.y}%`,
-                  background: `radial-gradient(circle, ${t.color}, transparent 65%)`,
+                  background: `radial-gradient(closest-side, ${t.color}, color-mix(in oklab, ${t.color} 30%, transparent) 45%, transparent)`,
                   opacity: active === t.key ? 0.28 : active ? 0.05 : 0.12,
                 }}
               />
@@ -188,10 +224,10 @@ export function KnowledgeMap() {
               >
                 <a
                   href={t.href}
-                  onPointerEnter={() => setActive(t.key)}
-                  onFocus={() => setActive(t.key)}
-                  onBlur={() => setActive(null)}
-                  className={`group relative block overflow-hidden p-6 transition-all duration-300 lg:rounded-2xl lg:border lg:bg-surface/90 lg:p-5 lg:shadow-soft lg:backdrop-blur ${
+                  onPointerEnter={() => setHover(t.key)}
+                  onFocus={() => setHover(t.key)}
+                  onBlur={() => setHover(null)}
+                  className={`group relative block overflow-hidden p-6 transition-[translate,opacity,border-color,box-shadow] duration-300 lg:rounded-2xl lg:border lg:bg-surface lg:p-5 lg:shadow-soft ${
                     active === t.key ? "lg:-translate-y-1" : "lg:border-line"
                   } ${isLit(t.key) ? "" : "lg:opacity-50"}`}
                   style={active === t.key ? { borderColor: t.color, boxShadow: `0 20px 50px -24px ${t.color}` } : undefined}

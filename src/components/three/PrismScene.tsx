@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Edges, Environment, Lightformer, MeshTransmissionMaterial } from "@react-three/drei";
+import { Edges, Environment, Lightformer, MeshTransmissionMaterial, PerformanceMonitor } from "@react-three/drei";
 
 export type PrismVariant = "hero" | "finale";
 
@@ -13,6 +13,8 @@ type Props = {
   reducedMotion?: boolean;
   /** Pixel element whose scroll progress drives the transformation. */
   scrollTarget?: React.RefObject<HTMLElement | null>;
+  /** Called once the first frames have rendered, so a poster can hand over without a flash. */
+  onReady?: () => void;
 };
 
 const SPECTRUM = ["#68D9F5", "#7C9BFF", "#B6A0FF", "#E85AC4", "#FFB36B"];
@@ -300,8 +302,8 @@ function HeroPrism({
         <mesh ref={prism} geometry={geometry}>
           <MeshTransmissionMaterial
             background={bg}
-            samples={quality === "high" ? 8 : 4}
-            resolution={quality === "high" ? 768 : 384}
+            samples={quality === "high" ? 6 : 3}
+            resolution={quality === "high" ? 512 : 256}
             transmission={1}
             thickness={0.7}
             roughness={0.04}
@@ -311,7 +313,7 @@ function HeroPrism({
             distortion={0.25}
             distortionScale={0.4}
             temporalDistortion={0.08}
-            backside
+            backside={quality === "high"}
             backsideThickness={0.25}
             color={dark ? "#e6ddff" : "#ffffff"}
             attenuationColor="#e4dbff"
@@ -408,8 +410,8 @@ function FinaleCrystal({ reducedMotion, pointer }: { reducedMotion?: boolean; po
         <octahedronGeometry args={[1, 0]} />
         <MeshTransmissionMaterial
           background={bg}
-          samples={6}
-          resolution={512}
+          samples={4}
+          resolution={384}
           transmission={1}
           thickness={2}
           roughness={0.08}
@@ -419,7 +421,6 @@ function FinaleCrystal({ reducedMotion, pointer }: { reducedMotion?: boolean; po
           distortion={0.2}
           distortionScale={0.3}
           temporalDistortion={0.05}
-          backside
           color="#e2d8ff"
           iridescence={0.8}
           iridescenceIOR={1.3}
@@ -437,12 +438,23 @@ function FinaleCrystal({ reducedMotion, pointer }: { reducedMotion?: boolean; po
 /* Canvas                                                              */
 /* ------------------------------------------------------------------ */
 
-export default function PrismScene({ variant = "hero", background, reducedMotion, scrollTarget }: Props) {
+/** Reports readiness after two rendered frames: by then shaders have compiled and the image is real. */
+function Ready({ onReady }: { onReady?: () => void }) {
+  const frames = useRef(0);
+  useFrame(() => {
+    // One real frame is enough: shaders have compiled and the image is genuine by then.
+    if (frames.current < 2 && ++frames.current === 1) onReady?.();
+  });
+  return null;
+}
+
+export default function PrismScene({ variant = "hero", background, reducedMotion, scrollTarget, onReady }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(true);
   const [quality] = useState<"high" | "low">(() =>
     typeof window !== "undefined" && (window.innerWidth < 768 || (navigator.hardwareConcurrency ?? 8) <= 4) ? "low" : "high",
   );
+  const [dpr, setDpr] = useState(quality === "high" ? 1.5 : 1);
   const pointer = useWindowPointer();
   const scroll = useScrollProgress(scrollTarget);
   const dark = variant === "finale" || new THREE.Color(background).getHSL({ h: 0, s: 0, l: 0 }).l < 0.4;
@@ -457,46 +469,31 @@ export default function PrismScene({ variant = "hero", background, reducedMotion
   }, []);
 
   return (
-    <div
-      ref={wrap}
-      className="absolute inset-0"
-      style={{
-        maskImage: "linear-gradient(to right, transparent, black 18%, black 88%, transparent), linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)",
-        maskComposite: "intersect",
-        WebkitMaskComposite: "source-in",
-      }}
-    >
+    <div ref={wrap} className="absolute inset-0">
       <Canvas
-        dpr={[1, quality === "high" ? 1.75 : 1.25]}
+        dpr={dpr}
         camera={{ position: [0, 0, variant === "hero" ? 7.2 : 6.2], fov: 35 }}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         frameloop={visible ? "always" : "never"}
         aria-hidden="true"
         style={{ pointerEvents: "none" }}
       >
+        {/* If frames drop, render fewer pixels. Only the resolution changes: switching materials
+            would recompile shaders, a bigger hitch than the one being avoided. */}
+        <PerformanceMonitor onDecline={() => setDpr(1)} flipflops={2} />
+        <Ready onReady={onReady} />
         <ambientLight intensity={dark ? 0.4 : 0.8} />
         <directionalLight position={[3, 4, 5]} intensity={dark ? 1.2 : 1.6} />
 
         {variant === "hero" ? (
-          <HeroPrism
-            background={background}
-            reducedMotion={reducedMotion}
-            pointer={pointer}
-            scroll={scroll}
-            quality={quality}
-          />
+          <HeroPrism background={background} reducedMotion={reducedMotion} pointer={pointer} scroll={scroll} quality={quality} />
         ) : (
           <FinaleCrystal reducedMotion={reducedMotion} pointer={pointer} />
         )}
 
-        <Fragments
-          count={quality === "high" ? 30 : 16}
-          scroll={variant === "hero" ? scroll : { current: 0 }}
-          reducedMotion={reducedMotion}
-          dark={dark}
-        />
+        <Fragments count={quality === "high" ? 30 : 16} scroll={variant === "hero" ? scroll : { current: 0 }} reducedMotion={reducedMotion} dark={dark} />
 
-        <Environment resolution={256} frames={1}>
+        <Environment resolution={128} frames={1}>
           <Lightformer form="rect" intensity={dark ? 3 : 4} color="#ffffff" position={[0, 4, -3]} scale={[10, 2, 1]} />
           <Lightformer form="rect" intensity={3} color="#7654E8" position={[-5, 0, 2]} scale={[2, 8, 1]} rotation-y={Math.PI / 2} />
           <Lightformer form="rect" intensity={2.5} color="#68D9F5" position={[5, 1, 2]} scale={[2, 6, 1]} rotation-y={-Math.PI / 2} />

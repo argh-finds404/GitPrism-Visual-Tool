@@ -64,7 +64,8 @@ export type RepositoryCommand =
   | { type: "STAGE_PATHS"; paths: string[] }
   | { type: "UNSTAGE_PATHS"; paths: string[] }
   | { type: "RESTORE_PATHS"; paths: string[] }
-  | { type: "COMMIT"; message: string; timestamp: number }
+  /** `author` defaults to the lab's author; fixtures use it to model other contributors. */
+  | { type: "COMMIT"; message: string; timestamp: number; author?: string }
   | { type: "CREATE_BRANCH"; name: string; at: ObjectId }
   | { type: "SWITCH_BRANCH"; name: string };
 

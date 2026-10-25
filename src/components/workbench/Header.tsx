@@ -61,6 +61,12 @@ export function Header() {
         >
           PR Studio
         </Link>
+        <Link
+          href="/timefold/gitprism-demo/acme-shop"
+          className="mr-1 hidden h-8 items-center rounded-lg border border-line-2 px-2.5 text-[12px] text-ink-2 transition-colors hover:border-violet hover:text-violet-ink xl:flex"
+        >
+          TimeFold
+        </Link>
         <SaveBadge />
         <span
           className="mr-1 hidden rounded-full border border-line-2 px-2.5 py-1 text-[11px] text-ink-2 xl:inline"

@@ -66,24 +66,39 @@ committed to this repository is ever executed.
 **`node:vm` is not a security boundary.** Node's own documentation says so, and this project does
 not treat it as one. It is a convenience for collecting results, not a jail.
 
-Within that, several measures are defence in depth, each covered by `src/tests/sandbox.test.ts`:
+Within that, several measures are defence in depth, each covered by `src/tests/sandbox.test.ts`.
+The governing idea is that **every value crossing into the context is a way out of it**, because
+a host object's `.constructor` reaches the host realm's `Function` and compiles code there.
 
-- Every host value handed to the VM context has its prototype severed before it crosses. A host
-  object's `.constructor` reaches the host realm's `Function`, which compiles code *outside* the
-  sandbox; until this was fixed, a test body could read `process`, `fs` and the entire
-  environment through `expect`, `console`, `require` or its own `exports` object.
-- Secret files (`.env*`, `.pem`, `.key`) are refused by the module loader, so their contents
-  cannot enter the context even by accident.
-- A one-second wall-clock limit covers module bodies and the test body alike, so neither an
-  infinite loop nor unbounded allocation can run away.
-- Each run gets its own context and module cache, so nothing one run does is visible to the next.
+- **Values passed in** have their prototypes severed. Functions stay callable; they lose
+  `.constructor`. Before this, a test body could read `process`, `fs` and the whole environment
+  through `expect`, `console`, `require` or its own `exports`.
+- **The global itself** is severed, because the sandbox object handed to `vm.createContext`
+  becomes the context's global — so `globalThis.constructor` was the host realm's `Object`.
+- **Errors travelling outward** are rebuilt inside the context. An unresolved import, a module
+  that will not compile, a failed assertion and a refused file all threw *host* errors that test
+  code could catch and compile through.
+- **Only source modules load.** This is an allowlist (`.ts`, `.tsx`, `.js`, `.jsx`, minus
+  secrets), not a list of secrets to refuse. The denylist leaked: any commit file whose contents
+  happened to parse as JavaScript could be imported and read back, including `id_rsa`, `.npmrc`
+  and `credentials.json`.
+- **A one-second wall-clock limit** covers module bodies and the test body alike.
+- **Each run gets its own context and module cache**, so nothing one run does reaches the next.
 
 **Known limits.** Execution is synchronous and blocks the event loop for as long as a test runs,
-up to the one-second cap per test; that is bounded here because the fixture is small and fixed,
-but it would need a worker or a separate process before running code from a real repository.
-MergeLab is different again: it validates hand-edited code, so it never executes anything on the
-server — parsing and type-checking only — and runs tests in a disposable Web Worker in your own
-browser instead.
+up to the one-second cap per test. That is bounded here because the fixture is small and fixed,
+but running code from a real repository would need the whole list the industry expects of an
+isolation boundary: a separate process or container, CPU, memory and process-count limits, no
+outbound network by default, and a filesystem view containing only what the run needs. Prototype
+severing is not a substitute for any of that.
+
+**MergeLab is a different threat model.** It validates hand-edited code, so it never executes
+anything on the server — parsing and type-checking only (`POST …/merge-check`). Tests run in a
+disposable Web Worker in your own browser: a fresh worker per test, terminated after two seconds.
+There is no host realm to escape to there, because the worker *is* the realm; it cannot touch the
+page or the DOM. What it can still reach is anything same-origin, including `fetch`. That is
+acceptable while the code being run is your own edits to your own merge, and it is the thing to
+revisit first if candidates ever arrive from somewhere else.
 
 ## Architecture
 

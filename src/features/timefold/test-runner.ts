@@ -18,7 +18,7 @@
 import { stripTypeScriptTypes } from "node:module";
 import vm from "node:vm";
 
-import { isSecretFile } from "@/features/impact-analysis/source-analysis";
+import { isSecretFile, isSource } from "@/features/impact-analysis/source-analysis";
 import { expect, resolveModule, toCommonJs, Unsupported, type TestOutcome, type TestStatus } from "@/features/testing/harness";
 
 export type { TestOutcome, TestStatus } from "@/features/testing/harness";
@@ -46,37 +46,72 @@ export function runFixtureTest(files: Record<string, string>, testPath: string, 
 
   const registered = new Map<string, () => unknown>();
   const register = severed((name: string, fn: () => unknown) => void registered.set(name, fn));
-  // `expect` is shared across runs, so it is wrapped rather than severed in place.
-  const guardedExpect = severed((actual: unknown) => severed(expect(actual)));
-  const context = vm.createContext({
-    test: register,
-    it: register,
-    expect: guardedExpect,
-    console: severed({ log() {}, warn() {}, error() {} }),
-  });
+
+  // The sandbox object becomes the context's global, so it needs severing too: otherwise
+  // `globalThis.constructor` is the host realm's Object and leads straight back out.
+  const context = vm.createContext(severed({ test: register, it: register, console: severed({ log() {}, warn() {}, error() {} }) }));
+
+  // Errors are values that cross the boundary like any other. A host Error carries the host
+  // realm on its prototype chain, so test code could catch one and compile through it. Every
+  // error handed back to the context is built here, inside it.
+  const vmError = vm.runInContext(
+    "(message, kind) => { const e = new Error(String(message)); e.kind = kind; return e; }",
+    context,
+  ) as (message: string, kind: string) => Error;
+
+  /** Run host logic for the context, converting anything it throws into a context-owned error. */
+  const forVm = <T>(fn: () => T): T => {
+    try {
+      return fn();
+    } catch (e) {
+      const err = e as Error;
+      throw vmError(err?.message ?? String(e), err instanceof Unsupported ? "unsupported" : "host");
+    }
+  };
+
+  /** Wrap a host value so every function in it reports failures as context-owned errors. */
+  const shield = (value: unknown): unknown => {
+    if (typeof value === "function") {
+      const fn = value as (...args: unknown[]) => unknown;
+      return severed((...args: unknown[]) => shield(forVm(() => fn(...args))));
+    }
+    if (value && typeof value === "object") {
+      const out: Record<string, unknown> = Object.create(null);
+      for (const [k, v] of Object.entries(value)) out[k] = shield(v);
+      return out;
+    }
+    return value;
+  };
+
+  // A failed assertion throws from the host, so the matchers are shielded, not just severed.
+  context.expect = severed((actual: unknown) => shield(expect(actual)));
   const cache = new Map<string, Record<string, unknown>>();
 
   const load = (path: string): Record<string, unknown> => {
     const hit = cache.get(path);
     if (hit) return hit;
-    // A secret is never source. Refusing here means its contents cannot reach the context at
-    // all, so nothing inside can read them out through a failure message.
-    if (isSecretFile(path)) throw new Unsupported(`${path} is a secret file and is never loaded`);
+    // An allowlist, not a denylist. Naming the secrets to refuse was not enough: anything in the
+    // commit whose contents happen to parse as JavaScript could be imported and read back, which
+    // covered id_rsa, .npmrc and credentials.json. Only real source modules load, and secrets are
+    // refused even when they carry a source extension.
+    if (!isSource(path) || isSecretFile(path)) throw new Unsupported(`${path} is not a source module and is never loaded`);
     const exports: Record<string, unknown> = severed({});
     cache.set(path, exports);
     const js = toCommonJs(stripTypeScriptTypes(files[path], { mode: "strip" }), path);
     const wrapper = vm.runInContext(`(function (exports, require) {\n${js}\n})`, context, { filename: path, timeout: TIME_LIMIT_MS });
-    const require = severed((spec: string) => {
-      const target = resolveModule(path, spec, files);
-      if (!target) throw new Unsupported(`${path}: cannot resolve "${spec}" at this commit`);
-      return load(target);
-    });
+    const require = severed((spec: string) =>
+      forVm(() => {
+        const target = resolveModule(path, spec, files);
+        if (!target) throw new Unsupported(`${path}: cannot resolve "${spec}" at this commit`);
+        return load(target);
+      }),
+    );
     wrapper(exports, require);
     return exports;
   };
 
   // Module bodies run inside the context as well, under the same time limit.
-  context.__load = severed(() => load(testPath));
+  context.__load = severed(() => forVm(() => load(testPath)));
   try {
     vm.runInContext("__load()", context, { timeout: TIME_LIMIT_MS });
   } catch (e) {
@@ -92,8 +127,10 @@ export function runFixtureTest(files: Record<string, string>, testPath: string, 
     if (r && typeof (r as Promise<unknown>).then === "function") return done("error", "Async tests are not supported by this runner.");
     return done("pass", "Passed");
   } catch (e) {
-    const err = e as Error;
-    if (err instanceof Unsupported) return done("error", err.message);
+    const err = e as Error & { kind?: string };
+    // Boundary errors arrive rebuilt inside the context, so the kind travels on the error
+    // rather than on its class.
+    if (err instanceof Unsupported || err?.kind === "unsupported") return done("error", err.message);
     if (/Script execution timed out/.test(err.message)) return done("error", `Timed out after ${TIME_LIMIT_MS} ms`);
     return done("fail", err.message || String(e));
   }

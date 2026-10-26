@@ -72,19 +72,68 @@ describe("the runner cannot reach outside itself", () => {
   });
 });
 
-describe("secrets never enter the sandbox", () => {
-  it("refuses to load a .env file", () => {
-    const out = hostile(`throw new Error("LEAKED " + require("../.env"));`, { ".env": "SESSION_SECRET=super-secret\n" });
-    expect(out.status).toBe("error");
-    expect(out.detail).toMatch(/secret file and is never loaded/);
-    expect(out.detail).not.toContain("super-secret");
+describe("an error is a value too, and must not carry the host realm", () => {
+  // Severing the prototypes of values passed IN was not enough: errors travel outward. Each of
+  // these reached the real `process` until boundary errors were rebuilt inside the context.
+  const caught: [string, string, Record<string, string>][] = [
+    ["an unresolved import", `try { require("./nothing-here"); } catch (e) { P(e); }`, {}],
+    [
+      "a module that will not compile",
+      `try { require("../src/bad"); } catch (e) { P(e); }`,
+      { "src/bad.ts": `const = ;\n` },
+    ],
+    ["a failed assertion", `try { expect(1).toBe(2); } catch (e) { P(e); }`, {}],
+    ["a failed negated matcher", `try { expect(1).not.toBe(1); } catch (e) { P(e); }`, {}],
+    ["a refused file", `try { require("../secrets.json"); } catch (e) { P(e); }`, { "secrets.json": "{}\n" }],
+  ];
+
+  for (const [name, body, files] of caught) {
+    it(`cannot compile host code through ${name}`, () => {
+      const probe = `function P(e) { if (e && e.constructor) { throw new Error("PID " + e.constructor.constructor("return process")().pid); } throw new Error("no ctor"); }\n${body}`;
+      const out = hostile(probe, files);
+      expect(out.status).not.toBe("pass");
+      expect(out.detail).not.toMatch(/^PID \d+/);
+      expect(out.detail).toMatch(/process is not defined|no ctor/);
+    });
+  }
+
+  it("cannot compile host code through the context's own global", () => {
+    const out = hostile(`
+      const c = globalThis.constructor;
+      if (c) throw new Error("PID " + c.constructor("return process")().pid);
+      throw new Error("global has no constructor");
+    `);
+    expect(out.detail).not.toMatch(/^PID \d+/);
+  });
+});
+
+describe("only source modules can be loaded", () => {
+  const SECRET = "SUPER-SECRET-VALUE";
+
+  // Naming secrets to refuse was a denylist, and it leaked: any commit file whose contents
+  // happened to parse as JavaScript could be imported and read back.
+  const refused = [".env", ".env.local", "id.key", "server.pem", "id_rsa", ".npmrc", "credentials.json", "NOTES.md", "config.json", "creds"];
+
+  for (const path of refused) {
+    it(`refuses ${path}`, () => {
+      const out = hostile(`throw new Error("READ " + JSON.stringify(require("../${path}")));`, {
+        [path]: `export const secret = "${SECRET}";\n`,
+      });
+      expect(out.detail).not.toContain(SECRET);
+      expect(out.detail).toMatch(/is not a source module and is never loaded/);
+    });
+  }
+
+  it("still loads a genuine source module", () => {
+    const out = hostile(`if (require("../src/a").a() !== 1) throw new Error("wrong");`, { "src/a.ts": `export function a() { return 1; }\n` });
+    expect(out.status).toBe("pass");
   });
 
-  it("refuses key material too", () => {
-    const out = hostile(`require("../id.key");`, { "id.key": "-----BEGIN PRIVATE KEY-----\n" });
-    expect(out.status).toBe("error");
-    expect(out.detail).toMatch(/secret file and is never loaded/);
-    expect(out.detail).not.toContain("PRIVATE KEY");
+  it("does not echo a refused file's contents through a compile error", () => {
+    const out = hostile(`try { require("../broken.ts"); } catch (e) { throw new Error("MSG " + e.message); }`, {
+      "broken.ts": `const x = ;\n// ${SECRET}\n`,
+    });
+    expect(out.detail).not.toContain(SECRET);
   });
 });
 

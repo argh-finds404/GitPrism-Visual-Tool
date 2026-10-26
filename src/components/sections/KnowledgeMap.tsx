@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AnimatePresence, motion, useInView } from "motion/react";
+import { useInView } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import { Aurora } from "@/components/ui/Aurora";
 import { usePrefersReducedMotion } from "@/lib/theme";
@@ -104,9 +104,7 @@ export function KnowledgeMap() {
   const [hover, setHover] = useState<TopicKey | null>(null);
   const autoIndex = useAutoCycle(topics.length, inView && !reduce && hover === null, 2600);
   const active = hover ?? (inView && !reduce ? topics[autoIndex].key : null);
-  const auto = active !== null && hover === null;
   const isLit = (t: TopicKey) => !active || active === t;
-  const shownTopic = active ? topics.find((t) => t.key === active)! : null;
 
   return (
     <section id="learn" aria-labelledby="learn-title" className="relative overflow-hidden bg-paper-2 py-28 md:py-36">
@@ -126,29 +124,6 @@ export function KnowledgeMap() {
           className="panel relative mt-8 overflow-hidden rounded-[32px] lg:aspect-[16/9]"
           onPointerLeave={() => setHover(null)}
         >
-          {/* Names, right now, whatever is lit below: the map's own caption instead of a separate block of text. */}
-          <AnimatePresence mode="wait">
-            {shownTopic && (
-              <motion.div
-                key={shownTopic.key}
-                initial={reduce ? false : { opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute left-5 top-5 z-10 hidden max-w-[15rem] items-start gap-2.5 rounded-xl border bg-surface/90 px-3.5 py-2.5 shadow-soft backdrop-blur-sm lg:flex"
-                style={{ borderColor: `color-mix(in oklab, ${shownTopic.color} 45%, var(--line))` }}
-              >
-                <span className="mt-0.5 h-2 w-2 shrink-0 rotate-45 rounded-[2px]" style={{ background: shownTopic.color }} aria-hidden="true" />
-                <span>
-                  <span className="flex items-center gap-1.5 text-[0.85rem] font-medium text-ink">
-                    {shownTopic.title}
-                    {auto && <span className="rounded-full bg-[color:var(--add)]/15 px-1.5 py-px font-mono text-[0.62rem] font-normal text-[color:var(--add)]">auto</span>}
-                  </span>
-                  <span className="mt-0.5 block text-[0.76rem] leading-snug text-ink-3">{shownTopic.body}</span>
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
           {/* Each area glows in its own colour; the active one brightens. */}
           <div aria-hidden="true" className="absolute inset-0 hidden lg:block">
             {topics.map((t) => (

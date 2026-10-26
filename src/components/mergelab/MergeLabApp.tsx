@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { useEffect } from "react";
-import { ArrowUpRight } from "lucide-react";
+
 import { short } from "@/lib/git";
 import { PrismMark } from "@/components/brand/PrismMark";
 import { FIXTURE } from "@/features/impact-analysis/fixture";
@@ -97,18 +98,7 @@ function Workspace() {
             <span className="kbd">t</span>
             <span className="kbd">b</span> resolve <span className="kbd">u</span> undo
           </span>
-          <Link
-            href={`/timefold/${FIXTURE.owner}/${FIXTURE.repo}`}
-            className="flex h-8 items-center gap-1 rounded-full border border-white/15 px-3 text-[#c9c0d8] hover:border-[#3DE0A6] hover:text-white"
-          >
-            History <ArrowUpRight size={13} />
-          </Link>
-          <Link
-            href={`/review/${FIXTURE.owner}/${FIXTURE.repo}/pull/${FIXTURE.number}`}
-            className="flex h-8 items-center gap-1 rounded-full border border-white/15 px-3 text-[#c9c0d8] hover:border-[#3DE0A6] hover:text-white"
-          >
-            PR #{FIXTURE.number} <ArrowUpRight size={13} />
-          </Link>
+          <StudioSwitch current="mergelab" />
         </div>
       </header>
 

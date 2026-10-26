@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { useEffect } from "react";
-import { ArrowUpRight } from "lucide-react";
+
 import { PrismMark } from "@/components/brand/PrismMark";
 import { FIXTURE } from "@/features/impact-analysis/fixture";
 import { TimeFoldProvider, useTimeFold, type Mode } from "./store";
@@ -88,18 +89,7 @@ function Workspace() {
             <span className="kbd">→</span> commits <span className="kbd">[</span>
             <span className="kbd">]</span> changes <span className="kbd">space</span> play
           </span>
-          <Link
-            href={`/mergelab/${FIXTURE.owner}/${FIXTURE.repo}`}
-            className="flex h-8 items-center gap-1 rounded-full border border-white/15 px-3 text-[#c9c0d8] hover:border-[#9D7BFF] hover:text-white"
-          >
-            MergeLab <ArrowUpRight size={13} />
-          </Link>
-          <Link
-            href={`/review/${FIXTURE.owner}/${FIXTURE.repo}/pull/${FIXTURE.number}`}
-            className="flex h-8 items-center gap-1 rounded-full border border-white/15 px-3 text-[#c9c0d8] hover:border-[#9D7BFF] hover:text-white"
-          >
-            Review PR #{FIXTURE.number} <ArrowUpRight size={13} />
-          </Link>
+          <StudioSwitch current="timefold" />
         </div>
       </header>
 

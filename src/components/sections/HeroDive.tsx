@@ -40,7 +40,9 @@ const LANDING = 0.58;
 const ease = [0.22, 1, 0.36, 1] as const;
 
 /** Light loses itself with distance, so the fan dissolves rather than ending at an edge. */
-const FAN_MASK = `radial-gradient(circle at ${ORIGIN.x * 100}% ${ORIGIN.y * 100}%, rgb(0 0 0 / 0.9) 4%, rgb(0 0 0 / 0.35) 32%, transparent 68%)`;
+// Sized past the viewport on purpose. A mask that reaches transparent inside the frame draws a
+// visible terminus across the beams; this one runs out beyond the edge, so they simply leave.
+const FAN_MASK = `radial-gradient(ellipse 165% 165% at ${ORIGIN.x * 100}% ${ORIGIN.y * 100}%, rgb(0 0 0 / 0.95) 0%, rgb(0 0 0 / 0.62) 28%, rgb(0 0 0 / 0.34) 55%, rgb(0 0 0 / 0.16) 80%, transparent 100%)`;
 
 /**
  * A scroll-driven value, or a fixed resting one when the dive is off. Branching the range rather
@@ -88,9 +90,9 @@ export function HeroDive() {
   const fieldY = useDive(p, dive, [0, 1], ["0svh", "-6svh"], "0svh");
   const farY = useDive(p, dive, [0, 1], ["0svh", "-17svh"], "0svh");
   const farFade = useDive(p, dive, [0, 0.55, 0.85], [0.75, 0.55, 0], 0.75);
-  const prismY = useDive(p, dive, [0, 1], ["0svh", "-34svh"], "0svh");
-  const prismScale = useDive(p, dive, [0, 0.62, 1], [1, 1.5, 2.3], 1);
-  const prismFade = useDive(p, dive, [0, 0.72, 0.98], [1, 1, 0], 1);
+  const prismY = useDive(p, dive, [0, 1], ["0svh", "-16svh"], "0svh");
+  const prismScale = useDive(p, dive, [0, 0.62, 1], [1, 1.4, 1.75], 1);
+  const prismFade = useDive(p, dive, [0, 0.72, 1], [1, 1, 0.32], 1);
   const fanY = useDive(p, dive, [0, 1], ["0svh", "-46svh"], "0svh");
   const fanFade = useDive(p, dive, [0, 0.3, 0.68, 0.95], [0, 0.35, 0.85, 0], 0.4);
   const fanScale = useDive(p, dive, [0, 1], [1, 2.6], 1);
@@ -120,7 +122,8 @@ export function HeroDive() {
               Translate only: the canvas measures itself, and scaling it would force a full
               re-layout on every scroll tick. */}
           <motion.div
-            className="absolute inset-0"
+            // Taller than the stage: the plane drifts upward, and inset-0 would uncover the floor.
+            className="absolute inset-x-0 top-0 -bottom-[20svh]"
             style={{ y: fieldY, willChange: dive ? "transform" : undefined }}
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -135,7 +138,7 @@ export function HeroDive() {
             viewBox="0 0 100 100"
             // Slice, not stretch: the commit dots have to stay round on a wide stage.
             preserveAspectRatio="xMidYMid slice"
-            className="absolute inset-0 h-full w-full"
+            className="absolute inset-x-0 top-0 h-[130svh] w-full"
             style={{ y: farY, opacity: farFade, willChange: dive ? "transform, opacity" : undefined }}
           >
             {FAR_LANES.map((lane, li) => (
@@ -299,7 +302,7 @@ export function HeroDive() {
           {/* Plane 6 — what the prism puts out. Arrives rather than passes: this is the landing. */}
           <motion.div
             inert={dive && !landed}
-            className={`shell ${dive ? "pointer-events-none absolute inset-x-0 bottom-0 pb-10" : ""}`}
+            className={`shell ${dive ? "pointer-events-none absolute inset-x-0 bottom-[9svh]" : ""}`}
             style={{ y: outY, opacity: outFade, willChange: dive ? "transform, opacity" : undefined }}
           >
             {dive && (
@@ -360,14 +363,6 @@ export function HeroDive() {
 
         {/* The travel: empty height that the camera reads as distance. */}
         {dive && <div aria-hidden="true" className="h-[180svh]" />}
-
-        {/* The page proper closes over the stage at the end of the dive. */}
-        {dive && (
-          <div
-            aria-hidden="true"
-            className="relative z-10 -mt-[16svh] h-[16svh] rounded-t-[2.75rem] border-t border-line bg-paper"
-          />
-        )}
       </div>
     </section>
   );

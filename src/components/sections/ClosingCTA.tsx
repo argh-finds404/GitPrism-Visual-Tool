@@ -10,10 +10,10 @@ import { LazyPrism } from "@/components/three/LazyPrism";
 export function ClosingCTA() {
   const reduce = usePrefersReducedMotion();
   return (
-    <section aria-labelledby="cta-title" className="px-3 py-6 md:px-6">
+    <section aria-labelledby="cta-title">
+      {/* A band of the page, not a card floating on it: full bleed, square, no drop shadow. */}
       <div
-        className="night relative mx-auto grid max-w-[1400px] overflow-hidden rounded-[36px] lg:min-h-[640px] lg:grid-cols-12"
-        style={{ boxShadow: "0 0 0 1px rgb(155 123 255 / 0.28), 0 50px 140px -50px rgb(124 77 255 / 0.6)" }}
+        className="night relative grid overflow-hidden border-t border-line lg:min-h-[640px] lg:grid-cols-12"
       >
         <div
           aria-hidden="true"

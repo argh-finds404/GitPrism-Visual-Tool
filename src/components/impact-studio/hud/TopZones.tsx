@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { Activity, Bot, Check, ChevronDown, CircleAlert, Cuboid, Gauge, GitBranch, Link2, Loader2, RefreshCw, SlidersHorizontal, Square } from "lucide-react";
 import { FIXTURE } from "@/features/impact-analysis/fixture";
 import { PrismMark } from "@/components/brand/PrismMark";
@@ -60,18 +61,7 @@ export function ReviewContext({ compact = false }: { compact?: boolean }) {
         <Link href="/lab" className="ml-auto shrink-0 rounded-md px-1.5 py-px text-[11px] text-[#c9c0d8] hover:bg-white/8 hover:text-white">
           Lab
         </Link>
-        <Link
-          href={`/timefold/${FIXTURE.owner}/${FIXTURE.repo}`}
-          className="shrink-0 rounded-md px-1.5 py-px text-[11px] text-[#c9c0d8] hover:bg-white/8 hover:text-white"
-        >
-          History
-        </Link>
-        <Link
-          href={`/mergelab/${FIXTURE.owner}/${FIXTURE.repo}`}
-          className="shrink-0 rounded-md px-1.5 py-px text-[11px] text-[#c9c0d8] hover:bg-white/8 hover:text-white"
-        >
-          Merge
-        </Link>
+        <StudioSwitch current="review" />
         <span className="shrink-0 rounded bg-[#FFB800]/15 px-1.5 py-px text-[10px] text-[#FFD166]" title="Sample data analyzed in your browser">
           Fixture
         </span>

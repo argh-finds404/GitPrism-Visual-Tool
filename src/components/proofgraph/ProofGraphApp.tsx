@@ -7,6 +7,7 @@ import type { Candidate } from "@/features/changeverse/candidates";
 import { evaluate, type EvaluatedSymbol, type ProofGraph, type SymbolState } from "@/features/proofgraph/evidence";
 import { StatusBadge } from "@/components/impact-studio/hud/ui";
 import { PrismMark } from "@/components/brand/PrismMark";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { short } from "@/lib/git";
 
 /**
@@ -103,12 +104,14 @@ export function ProofGraphApp({ owner, repo, list }: { owner: string; repo: stri
           <Link href="/" aria-label="GitPrism home">
             <PrismMark className="h-6 w-6" />
           </Link>
-          <div className="mr-auto">
+          <div>
             <h1 className="text-[15px] font-semibold leading-tight">ProofGraph</h1>
             <p className="font-mono text-[11px] text-[var(--ink-3)]">
               {owner}/{repo}
             </p>
           </div>
+          <StudioSwitch current="proofgraph" />
+          <span className="mr-auto" />
 
           <label htmlFor="pg-candidate" className="sr-only">
             Change to collect evidence for

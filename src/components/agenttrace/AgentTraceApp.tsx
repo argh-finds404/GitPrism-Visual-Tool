@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { DiffLines, ModeSwitch } from "@/components/diff/DiffLines";
 import { PrismMark } from "@/components/brand/PrismMark";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { SectionTitle } from "@/components/impact-studio/hud/ui";
 import { attempts, failed, replay, touchedPaths, type AgentEvent, type AgentSession, type EventKind } from "@/features/agenttrace/events";
 import { compareSessions } from "@/features/agenttrace/compare";
@@ -61,12 +62,14 @@ export function AgentTraceApp({ sessions, baseFiles }: { sessions: AgentSession[
           <Link href="/" aria-label="GitPrism home">
             <PrismMark className="h-6 w-6" />
           </Link>
-          <div className="mr-auto">
+          <div>
             <h1 className="text-[15px] font-semibold leading-tight">AgentTrace</h1>
             <p className="font-mono text-[11px] text-[var(--ink-3)]">
               {sessions[0]?.repo.owner}/{sessions[0]?.repo.repo}
             </p>
           </div>
+          <StudioSwitch current="agenttrace" />
+          <span className="mr-auto" />
 
           <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Which attempt to read">
             {sessions.map((s) => (

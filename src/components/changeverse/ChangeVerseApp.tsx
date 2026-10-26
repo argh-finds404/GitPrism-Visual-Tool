@@ -8,6 +8,7 @@ import type { Preflight, SymbolVerdict, TestComparison, TestVerdict } from "@/fe
 import type { Finding } from "@/features/impact-analysis/types";
 import { FindingBadge, SectionTitle, StatusBadge } from "@/components/impact-studio/hud/ui";
 import { PrismMark } from "@/components/brand/PrismMark";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { short } from "@/lib/git";
 
 /**
@@ -83,12 +84,14 @@ export function ChangeVerseApp({ owner, repo, list }: { owner: string; repo: str
           <Link href="/" aria-label="GitPrism home" className="flex items-center gap-2">
             <PrismMark className="h-6 w-6" />
           </Link>
-          <div className="mr-auto">
+          <div>
             <h1 className="text-[15px] font-semibold leading-tight">ChangeVerse</h1>
             <p className="font-mono text-[11px] text-[var(--ink-3)]">
               {owner}/{repo}
             </p>
           </div>
+          <StudioSwitch current="changeverse" />
+          <span className="mr-auto" />
 
           <label htmlFor="cv-candidate" className="sr-only">
             Change to preflight

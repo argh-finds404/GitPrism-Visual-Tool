@@ -26,6 +26,9 @@ const RAYS: { angle: number; rgb: [number, number, number] }[] = [
   { angle: 0.43, rgb: [75, 227, 166] },
 ];
 
+/** Angular gap between neighbouring rays, so beam width can scale with their separation. */
+const RAY_STEP = (RAYS[RAYS.length - 1].angle - RAYS[0].angle) / (RAYS.length - 1);
+
 const CELL = 13;
 const FONT_PX = 10.5;
 
@@ -147,9 +150,10 @@ export function HexField({
           if (x > w + CELL || y < -CELL || y > h + CELL) break;
           const col = Math.round(x / CELL);
           const row = Math.round(y / CELL);
-          // Each ray stays a thin line, widening only slightly far from the prism, so the fan
-          // reads as separate beams of light rather than one coloured block.
-          const spread = d < reach * 0.22 ? 0 : 1;
+          // Beams widen as they travel, but never merge: half-width is tied to the gap to the
+          // neighbouring ray at this distance, so six beams stay six at any screen width.
+          const gapCells = (d * RAY_STEP) / CELL;
+          const spread = Math.max(0, Math.min(3, Math.floor(gapCells / 2.8)));
           for (let s = -spread; s <= spread; s++) {
             const r = row + s;
             if (r < 0 || r > rows) continue;
@@ -199,7 +203,8 @@ export function HexField({
         // A slow pulse travelling outward keeps the field alive once the intro has landed.
         const pulse = red ? 0.82 : 0.72 + Math.sin(time * 1.6 - c.t * 7) * 0.28;
         // Light loses itself with distance, so the fan dissolves back into the field.
-        const a = arrive * pulse * (1 - c.edge * 0.78) * Math.pow(1 - c.t, 1.35) * 1.15;
+        // Gentle falloff: the rays have to carry to the edge of the screen, not die halfway.
+        const a = arrive * pulse * (1 - c.edge * 0.7) * Math.pow(1 - c.t, 0.45) * 1.25;
         if (a < 0.02) continue;
         const [r, g, bl] = c.rgb;
         ctx.fillStyle = `rgba(${r},${g},${bl},${a.toFixed(3)})`;

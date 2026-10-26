@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { useInView } from "motion/react";
+import { usePrefersReducedMotion } from "@/lib/theme";
+import { useAutoCycle } from "@/lib/useAutoCycle";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Aurora } from "@/components/ui/Aurora";
@@ -86,8 +89,15 @@ const stages = [
 ];
 
 export function Journey() {
-  // One stage at a time: the path is visible, the detail is not, until you step onto it.
-  const [active, setActive] = useState(0);
+  // One stage at a time, but it walks itself: having to click five times to read five short
+  // cards was the whole experience. Any real interaction takes over for good.
+  const reduce = usePrefersReducedMotion();
+  const section = useRef<HTMLElement>(null);
+  const inView = useInView(section, { margin: "-20% 0px" });
+  const [picked, setPicked] = useState<number | null>(null);
+  const auto = useAutoCycle(stages.length, inView && !reduce && picked === null, 4200);
+  const active = picked ?? auto;
+  const setActive = (i: number) => setPicked(i);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const s = stages[active];
   const next = stages[active + 1];
@@ -114,7 +124,7 @@ export function Journey() {
   };
 
   return (
-    <section id="journey" aria-labelledby="journey-title" className="relative overflow-hidden py-28 md:py-36">
+    <section ref={section} id="journey" aria-labelledby="journey-title" className="relative overflow-hidden py-28 md:py-36">
       <Aurora tones={["amber", "violet"]} />
       <div className="shell relative">
         <div className="grid gap-6 lg:grid-cols-12 lg:items-end">

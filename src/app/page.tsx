@@ -2,7 +2,8 @@ import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
 import { LogRail } from "@/components/site/LogRail";
 import { LabProvider } from "@/components/lab/LabProvider";
-import { Hero } from "@/components/sections/Hero";
+// The scroll-driven banner. Swap this line for `Hero` (sections/Hero) to go back to the still one.
+import { HeroDive as Hero } from "@/components/sections/HeroDive";
 import { Problem } from "@/components/sections/Problem";
 import { Transformation } from "@/components/sections/Transformation";
 import { SnapshotLab } from "@/components/sections/SnapshotLab";

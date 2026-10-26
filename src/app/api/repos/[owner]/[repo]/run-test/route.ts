@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { FIXTURE, fixtureHistory } from "@/features/impact-analysis/fixture";
+import { isTestFile } from "@/features/impact-analysis/source-analysis";
 import { runFixtureTest } from "@/features/timefold/test-runner";
 
 /**
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/repos/[owne
   const commit = fixtureHistory().all.find((c) => c.oid === oid);
   if (!commit) return Response.json({ error: "That commit is not part of this repository." }, { status: 404 });
 
-  const outcome = runFixtureTest(commit.files, test.slice(0, hash), test.slice(hash + 1));
+  // The request names a test, not a module. Without this it could name any source file in the
+  // commit and have its top-level body executed, which is a wider surface than this route means
+  // to offer even though everything in the commit is already reviewed.
+  const path = test.slice(0, hash);
+  if (!isTestFile(path)) return Response.json({ error: "test must name a test file in this repository." }, { status: 400 });
+
+  const outcome = runFixtureTest(commit.files, path, test.slice(hash + 1));
   return Response.json({ oid, test, ...outcome }, { headers: { "Cache-Control": "no-store" } });
 }

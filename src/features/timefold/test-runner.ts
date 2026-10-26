@@ -8,12 +8,22 @@
 // fixture, so only source that is already committed to this repository ever executes.
 //
 // Within that, the measures below are defence in depth:
-//   - every host value handed to the context has its prototype severed, because a host object's
-//     `.constructor` reaches the host realm's Function and compiles code there. Left alone, a
-//     test body could read `process`, `fs` and the whole environment (demonstrated in the tests).
-//   - secrets are never loadable, so nothing inside the context can see them even by accident.
-//   - a wall-clock limit covers both module bodies and the test body.
-// Running genuinely untrusted code would need a separate process with its own limits.
+//   - every value handed to the context has its prototype severed, including the sandbox object
+//     itself (it becomes the global) and errors travelling back out, because a host object's
+//     `.constructor` reaches the host realm's Function and compiles code there.
+//   - only source modules load, by allowlist, so no other file in the commit can be read back.
+//   - a wall-clock limit covers module bodies, the test body and now microtasks as well.
+//
+// KNOWN AND UNFIXED, see README "Executing repository code":
+//   - memory is not capped. A run can allocate until the server's heap is gone.
+//   - an unhandled rejection from inside the context still reaches the host process, where
+//     Node's default is to terminate it. It cannot be contained from here: detection happens
+//     after this synchronous function has returned, so a handler scoped around the run never
+//     sees it (verified), and a process-global handler would change behaviour for unrelated
+//     requests. What makes it unreachable today is the fixture itself, which contains no
+//     promises or async code — asserted by a test, so adding any would fail the suite.
+// Both need execution moved out of this process. Running genuinely untrusted code would need
+// that plus enforceable CPU, memory, process, filesystem and network limits.
 
 import { stripTypeScriptTypes } from "node:module";
 import vm from "node:vm";
@@ -30,26 +40,38 @@ const TIME_LIMIT_MS = 1000;
  * working without its prototype; what it loses is `.constructor`, and with it the route to
  * compiling code outside the sandbox.
  */
-function severed<T extends object>(value: T): T {
+export function severed<T extends object>(value: T, seen = new WeakSet<object>()): T {
+  // A cyclic value would otherwise recurse until the stack gives out.
+  if (seen.has(value)) return value;
+  seen.add(value);
   for (const key of Object.keys(value)) {
     const inner = (value as Record<string, unknown>)[key];
-    if (typeof inner === "function" || (typeof inner === "object" && inner !== null)) severed(inner as object);
+    if (typeof inner === "function" || (typeof inner === "object" && inner !== null)) severed(inner as object, seen);
   }
   return Object.setPrototypeOf(value, null) as T;
 }
+
+/** Own-property test. `in` walks the prototype chain, so "constructor" and "toString" match. */
+const has = (files: Record<string, unknown>, key: string) => Object.prototype.hasOwnProperty.call(files, key);
 
 export function runFixtureTest(files: Record<string, string>, testPath: string, testName: string): TestOutcome {
   const t0 = performance.now();
   const done = (status: TestStatus, detail: string): TestOutcome => ({ status, detail, ms: Math.round((performance.now() - t0) * 10) / 10 });
 
-  if (!(testPath in files)) return done("missing", `${testPath} does not exist at this commit.`);
+  if (!has(files, testPath)) return done("missing", `${testPath} does not exist at this commit.`);
 
   const registered = new Map<string, () => unknown>();
   const register = severed((name: string, fn: () => unknown) => void registered.set(name, fn));
 
   // The sandbox object becomes the context's global, so it needs severing too: otherwise
   // `globalThis.constructor` is the host realm's Object and leads straight back out.
-  const context = vm.createContext(severed({ test: register, it: register, console: severed({ log() {}, warn() {}, error() {} }) }));
+  // `microtaskMode: "afterEvaluate"` drains the context's microtask queue inside the evaluation,
+  // so the watchdog covers promise callbacks too. Without it the timeout bounds synchronous code
+  // only, and `Promise.resolve().then(() => { while (true) {} })` blocks the event loop for ever.
+  const context = vm.createContext(
+    severed({ test: register, it: register, console: severed({ log() {}, warn() {}, error() {} }) }),
+    { microtaskMode: "afterEvaluate" },
+  );
 
   // Errors are values that cross the boundary like any other. A host Error carries the host
   // realm on its prototype chain, so test code could catch one and compile through it. Every

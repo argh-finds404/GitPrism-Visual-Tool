@@ -39,7 +39,11 @@ export function resolveModule(from: string, spec: string, files: Record<string, 
     else if (part !== ".") dir.push(part);
   }
   const base = dir.join("/");
-  for (const ext of ["", ".ts", ".tsx", ".js", "/index.ts"]) if (base + ext in files) return base + ext;
+  // Own properties only: `in` walks the prototype chain, so `require("../constructor")` and
+  // `require("../toString")` would resolve to Object.prototype members and hand back a function
+  // where a file's source was expected.
+  for (const ext of ["", ".ts", ".tsx", ".js", "/index.ts"])
+    if (Object.prototype.hasOwnProperty.call(files, base + ext)) return base + ext;
   return null;
 }
 
@@ -66,7 +70,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 export function runCompiled(modules: Record<string, string>, testPath: string, testName: string): TestOutcome {
   const t0 = performance.now();
   const done = (status: TestStatus, detail: string): TestOutcome => ({ status, detail, ms: Math.round((performance.now() - t0) * 10) / 10 });
-  if (!(testPath in modules)) return done("missing", `${testPath} is not in the candidate.`);
+  if (!Object.prototype.hasOwnProperty.call(modules, testPath)) return done("missing", `${testPath} is not in the candidate.`);
 
   const registered = new Map<string, () => unknown>();
   const register = (name: string, fn: () => unknown) => void registered.set(name, fn);

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { fixtureHistory, FIXTURE } from "@/features/impact-analysis/fixture";
-import { runFixtureTest } from "@/features/timefold/test-runner";
+import { runFixtureTest, severed } from "@/features/timefold/test-runner";
 import { POST as runTest } from "@/app/api/repos/[owner]/[repo]/run-test/route";
 import { POST as preflight } from "@/app/api/repos/[owner]/[repo]/proofgraph/route";
 
@@ -137,6 +137,69 @@ describe("only source modules can be loaded", () => {
   });
 });
 
+describe("the time limit covers asynchronous work too", () => {
+  // The watchdog bounds synchronous execution only. Before `microtaskMode: "afterEvaluate"`,
+  // a promise callback ran after it had gone and blocked the event loop for as long as it liked.
+  it("stops a microtask that would outlive the limit", () => {
+    const t0 = Date.now();
+    const out = hostile(`Promise.resolve().then(() => { const s = Date.now(); while (Date.now() - s < 4000) {} });`);
+    const elapsed = Date.now() - t0;
+    expect(out.status).toBe("error");
+    expect(out.detail).toMatch(/Timed out/);
+    expect(elapsed).toBeLessThan(3000);
+  });
+
+  it("stops a chain of microtasks", () => {
+    const t0 = Date.now();
+    const out = hostile(`
+      for (let i = 0; i < 20; i++) Promise.resolve().then(() => { const s = Date.now(); while (Date.now() - s < 300) {} });
+    `);
+    expect(out.status).toBe("error");
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+
+  it("stops a microtask that reschedules itself for ever", () => {
+    const t0 = Date.now();
+    const out = hostile(`const again = () => Promise.resolve().then(again); again();`);
+    expect(out.status).toBe("error");
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+
+  it("does not block the event loop after the runner returns", async () => {
+    hostile(`Promise.resolve().then(() => { const s = Date.now(); while (Date.now() - s < 4000) {} });`);
+    const t0 = Date.now();
+    await new Promise((r) => setImmediate(r));
+    // If a microtask had survived, the loop would have been held for seconds here.
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
+  it("still reports a test that returns a promise as unsupported", () => {
+    const out = runFixtureTest(
+      { "tests/a.test.ts": `test("p", () => Promise.resolve(1));\n` },
+      "tests/a.test.ts",
+      "p",
+    );
+    expect(out.status).toBe("error");
+    expect(out.detail).toMatch(/Async tests are not supported/);
+  });
+});
+
+describe("the fixture itself cannot trigger the unfixed rejection risk", () => {
+  // An unhandled rejection from the context reaches the host, where Node's default is to end
+  // the process, and it cannot be contained from inside a synchronous runner. What keeps it
+  // unreachable is that no fixture file can produce one. If that stops being true, this fails.
+  it("contains no promises or async code in any executable fixture file", () => {
+    const offenders: string[] = [];
+    for (const commit of fixtureHistory().all) {
+      for (const [path, src] of Object.entries(commit.files)) {
+        if (!/\.(ts|tsx|js|jsx)$/.test(path)) continue;
+        if (/\basync\b|\bawait\b|\bPromise\b|\.then\s*\(/.test(src)) offenders.push(`${commit.message}: ${path}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("a test cannot run forever", () => {
   it("stops an infinite loop", () => {
     const out = hostile(`while (true) {}`);
@@ -180,6 +243,47 @@ describe("hardening did not change what the runner reports", () => {
   it("still reports an absent test as missing", () => {
     expect(runFixtureTest(files, "tests/ok.test.ts", "nope").status).toBe("missing");
     expect(runFixtureTest(files, "tests/gone.test.ts", "works").status).toBe("missing");
+  });
+});
+
+describe("module resolution uses own properties only", () => {
+  // `in` walks the prototype chain, so these names all reported present and handed back a
+  // function where a file's source was expected.
+  for (const name of ["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty"]) {
+    it(`does not resolve "${name}" to an Object.prototype member`, () => {
+      const out = hostile(`throw new Error("GOT " + typeof require("../${name}"));`, { "src/a.ts": `export const a = 1;\n` });
+      expect(out.detail).not.toMatch(/GOT (function|object)/);
+      expect(out.detail).toMatch(/cannot resolve|not a source module/);
+    });
+  }
+
+  it("still resolves a real neighbouring module", () => {
+    const out = hostile(`if (require("../src/a").a !== 1) throw new Error("wrong");`, { "src/a.ts": `export const a = 1;\n` });
+    expect(out.status).toBe("pass");
+  });
+
+  it("reports an inherited name given as the test path as missing", () => {
+    for (const path of ["constructor", "toString", "__proto__"]) {
+      expect(runFixtureTest({ "tests/a.test.ts": `test("a", () => {});\n` }, path, "a").status).toBe("missing");
+    }
+  });
+});
+
+describe("severing survives awkward values", () => {
+  it("does not recurse for ever on a cyclic matcher result", () => {
+    // `severed` walks nested values; a cycle used to run the stack out.
+    const cyclic: Record<string, unknown> = { name: "loop" };
+    cyclic.self = cyclic;
+    cyclic.nested = { back: cyclic };
+    expect(() => severed(cyclic)).not.toThrow();
+    expect(Object.getPrototypeOf(cyclic)).toBeNull();
+    expect(Object.getPrototypeOf(cyclic.nested as object)).toBeNull();
+  });
+
+  it("leaves ordinary values working after severing", () => {
+    const fn = severed((a: number, b: number) => a + b);
+    expect(fn(2, 3)).toBe(5);
+    expect((fn as unknown as { constructor?: unknown }).constructor).toBeUndefined();
   });
 });
 
@@ -253,10 +357,26 @@ describe("only committed fixture code can be executed", () => {
   });
 
   it("cannot be steered outside the commit by a path in the test name", async () => {
+    // Refused before it reaches the runner now; even if it got there, the path would only ever
+    // be looked up in the commit's own file map.
     const r = await call(runTest, FIX, { oid: head.oid, test: "../../../../etc/passwd#x" });
-    expect(r.status).toBe(200);
-    // Resolved against the commit's own file map, so it simply is not there.
-    expect(r.body.status).toBe("missing");
+    expect(r.status).toBe(400);
+    expect(runFixtureTest(head.files, "../../../../etc/passwd", "x").status).toBe("missing");
+  });
+
+  it("refuses a path that is not a test file, so a request cannot pick a module to execute", async () => {
+    for (const path of ["src/auth/session.ts", "src/infra/db.ts", "README.md", "src/orders/pricing.ts"]) {
+      const r = await call(runTest, FIX, { oid: head.oid, test: `${path}#anything` });
+      expect(r.status).toBe(400);
+      expect(String(r.body.error)).toMatch(/must name a test file/);
+    }
+  });
+
+  it("refuses inherited property names as a test path", async () => {
+    for (const path of ["constructor", "__proto__", "toString", "valueOf"]) {
+      const r = await call(runTest, FIX, { oid: head.oid, test: `${path}#x` });
+      expect(r.status).toBe(400);
+    }
   });
 
   it("validates the analysis routes the same way", async () => {

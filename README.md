@@ -82,15 +82,48 @@ a host object's `.constructor` reaches the host realm's `Function` and compiles 
   secrets), not a list of secrets to refuse. The denylist leaked: any commit file whose contents
   happened to parse as JavaScript could be imported and read back, including `id_rsa`, `.npmrc`
   and `credentials.json`.
-- **A one-second wall-clock limit** covers module bodies and the test body alike.
+- **A one-second wall-clock limit** covers module bodies, the test body **and microtasks**. The
+  context is created with `microtaskMode: "afterEvaluate"`, which drains the microtask queue
+  inside the evaluation. Without it the watchdog bounds synchronous code only, and
+  `Promise.resolve().then(() => { while (true) {} })` blocks the event loop indefinitely.
 - **Each run gets its own context and module cache**, so nothing one run does reaches the next.
 
-**Known limits.** Execution is synchronous and blocks the event loop for as long as a test runs,
-up to the one-second cap per test. That is bounded here because the fixture is small and fixed,
-but running code from a real repository would need the whole list the industry expects of an
-isolation boundary: a separate process or container, CPU, memory and process-count limits, no
-outbound network by default, and a filesystem view containing only what the run needs. Prototype
-severing is not a substitute for any of that.
+### What is still not solved
+
+These are real and unfixed. They are listed here rather than mitigated because fixing them
+properly means moving execution out of this process, not adding another guard inside it.
+
+**Memory is not capped.** A run can allocate until the server's heap is gone; 600 MB inside the
+context raised no error in testing. `--max-old-space-size` is process-wide, so the sandbox
+competes with the server itself. There is no in-process way to bound this.
+
+**An unhandled rejection still reaches the host process**, where Node's default is to terminate
+it. It cannot be contained from inside a synchronous runner, and that was verified rather than
+assumed: detection happens after `runFixtureTest` has returned, so a handler scoped around the
+run never fires, and a process-global handler would change behaviour for every unrelated
+request. Next.js does not remove the default listeners either — it offers
+`removeUncaughtErrorAndRejectionListeners`, which is experimental and off.
+What keeps this unreachable today is the fixture: no executable file in any fixture commit
+contains `async`, `await`, `Promise` or `.then(`, and a test asserts it, so adding any would
+fail the suite before it could reach a server.
+
+**Execution blocks the event loop** for as long as a test runs, up to one second each, and runs
+are serialised. ChangeVerse executes roughly eight tests per request.
+
+### Why not a child process yet
+
+A child process or worker is the right answer to all three and was evaluated. It was not taken
+in this pass because `runFixtureTest` is synchronous and three engines (`preflight`,
+`collectEvidence`, `fixtureSessions`) plus their routes and pages consume it synchronously;
+making it asynchronous ripples through all of them. Keeping the signature with `spawnSync` would
+mean either serialising the harness functions into the child, which breaks under the minifier,
+or duplicating them in a standalone script that Next's bundler does not own — drift and
+deployment fragility in exchange for a boundary the fixture does not yet need.
+
+**Before any non-fixture code runs**, that boundary becomes mandatory, and the in-process
+measures above stop being the interesting part: a separate process or container with enforceable
+CPU, memory, process-count, filesystem and network limits, and kill-on-timeout at the process
+level. Prototype severing and `microtaskMode` are not substitutes for any of it.
 
 **MergeLab is a different threat model.** It validates hand-edited code, so it never executes
 anything on the server — parsing and type-checking only (`POST …/merge-check`). Tests run in a

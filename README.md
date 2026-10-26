@@ -52,6 +52,39 @@ MergeLab's three-way merge is a diff3 with Git's default (zealous) refinements. 
 
 Simulated: the lab's working tree and index live in memory, and there is no merging, packing, remotes or `.git` directory. The Studio's Agent Hub uses built-in rules; live MCP connections need a server-side bridge that isn't included.
 
+## Executing repository code
+
+Three features run real code to produce real results: TimeFold's regression hunt, ChangeVerse's
+preflight and ProofGraph's evidence collection. What keeps that safe is worth stating precisely,
+because it is easy to assume the wrong thing.
+
+**The control that matters is upstream, not the sandbox.** Every route accepts an identifier and
+nothing else — a commit ID, a test name, a candidate ID — and resolves it against the bundled
+fixture on the server. No request can carry code, a path or file contents. Only source already
+committed to this repository is ever executed.
+
+**`node:vm` is not a security boundary.** Node's own documentation says so, and this project does
+not treat it as one. It is a convenience for collecting results, not a jail.
+
+Within that, several measures are defence in depth, each covered by `src/tests/sandbox.test.ts`:
+
+- Every host value handed to the VM context has its prototype severed before it crosses. A host
+  object's `.constructor` reaches the host realm's `Function`, which compiles code *outside* the
+  sandbox; until this was fixed, a test body could read `process`, `fs` and the entire
+  environment through `expect`, `console`, `require` or its own `exports` object.
+- Secret files (`.env*`, `.pem`, `.key`) are refused by the module loader, so their contents
+  cannot enter the context even by accident.
+- A one-second wall-clock limit covers module bodies and the test body alike, so neither an
+  infinite loop nor unbounded allocation can run away.
+- Each run gets its own context and module cache, so nothing one run does is visible to the next.
+
+**Known limits.** Execution is synchronous and blocks the event loop for as long as a test runs,
+up to the one-second cap per test; that is bounded here because the fixture is small and fixed,
+but it would need a worker or a separate process before running code from a real repository.
+MergeLab is different again: it validates hand-edited code, so it never executes anything on the
+server — parsing and type-checking only — and runs tests in a disposable Web Worker in your own
+browser instead.
+
 ## Architecture
 
 ```

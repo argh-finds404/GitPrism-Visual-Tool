@@ -113,10 +113,14 @@ describe("readLocalGitRepo", () => {
     const licenseDiff = diffs.find((d) => d.path === "LICENSE");
     expect(licenseDiff?.status).toBe("added");
     expect(licenseDiff?.newContent).toBe("MIT License");
+    expect(licenseDiff?.additions).toBe(1);
+    expect(licenseDiff?.deletions).toBe(0);
 
     const readmeDiff = diffs.find((d) => d.path === "README.md");
     expect(readmeDiff?.status).toBe("modified");
     expect(readmeDiff?.oldContent).toBe("# Hello");
     expect(readmeDiff?.newContent).toBe("# Hello World");
+    expect(readmeDiff?.additions).toBe(1);
+    expect(readmeDiff?.deletions).toBe(1);
   });
 });

@@ -27,6 +27,8 @@ export type GitFileDiff = {
   newContent?: string;
   oldOid?: string;
   newOid?: string;
+  additions?: number;
+  deletions?: number;
 };
 
 export type GitCommit = {
@@ -42,6 +44,8 @@ export type GitCommit = {
   branches: string[];
   isHead?: boolean;
   diffs?: GitFileDiff[];
+  additions?: number;
+  deletions?: number;
 };
 
 export type GitContributor = {
@@ -220,6 +224,34 @@ export function flattenTree(
   return result;
 }
 
+function countLineDiff(oldText?: string, newText?: string): { additions: number; deletions: number } {
+  if (!oldText && !newText) return { additions: 0, deletions: 0 };
+  if (!oldText) return { additions: newText ? newText.split("\n").length : 0, deletions: 0 };
+  if (!newText) return { additions: 0, deletions: oldText ? oldText.split("\n").length : 0 };
+
+  const oldLines = oldText.split("\n");
+  const newLines = newText.split("\n");
+
+  const oldFreq = new Map<string, number>();
+  for (const l of oldLines) {
+    oldFreq.set(l, (oldFreq.get(l) ?? 0) + 1);
+  }
+
+  let matched = 0;
+  for (const l of newLines) {
+    const c = oldFreq.get(l) ?? 0;
+    if (c > 0) {
+      matched++;
+      oldFreq.set(l, c - 1);
+    }
+  }
+
+  return {
+    additions: Math.max(0, newLines.length - matched),
+    deletions: Math.max(0, oldLines.length - matched),
+  };
+}
+
 /**
  * Computes file-level diffs between a commit and its primary parent commit.
  */
@@ -240,20 +272,28 @@ export function computeCommitDiffs(
   for (const [path, info] of currentFiles.entries()) {
     const parentInfo = parentFiles.get(path);
     if (!parentInfo) {
+      const content = blobsByOid.get(info.oid) ?? "";
       diffs.push({
         path,
         status: "added",
         newOid: info.oid,
-        newContent: blobsByOid.get(info.oid) ?? "",
+        newContent: content,
+        additions: content ? content.split("\n").length : 0,
+        deletions: 0,
       });
     } else if (parentInfo.oid !== info.oid) {
+      const oldContent = blobsByOid.get(parentInfo.oid) ?? "";
+      const newContent = blobsByOid.get(info.oid) ?? "";
+      const { additions, deletions } = countLineDiff(oldContent, newContent);
       diffs.push({
         path,
         status: "modified",
         oldOid: parentInfo.oid,
         newOid: info.oid,
-        oldContent: blobsByOid.get(parentInfo.oid) ?? "",
-        newContent: blobsByOid.get(info.oid) ?? "",
+        oldContent,
+        newContent,
+        additions,
+        deletions,
       });
     }
   }
@@ -261,11 +301,14 @@ export function computeCommitDiffs(
   // Check for deleted files
   for (const [path, parentInfo] of parentFiles.entries()) {
     if (!currentFiles.has(path)) {
+      const oldContent = blobsByOid.get(parentInfo.oid) ?? "";
       diffs.push({
         path,
         status: "deleted",
         oldOid: parentInfo.oid,
-        oldContent: blobsByOid.get(parentInfo.oid) ?? "",
+        oldContent,
+        additions: 0,
+        deletions: oldContent ? oldContent.split("\n").length : 0,
       });
     }
   }
@@ -460,7 +503,16 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
       commit.treeEntries = treesByOid.get(commit.tree);
     }
     const primaryParent = commit.parents[0] ? commitsByOid.get(commit.parents[0]) : undefined;
-    commit.diffs = computeCommitDiffs(commit, primaryParent, treesByOid, blobsByOid);
+    const computedDiffs = computeCommitDiffs(commit, primaryParent, treesByOid, blobsByOid);
+    commit.diffs = computedDiffs;
+    let add = 0;
+    let del = 0;
+    for (const d of computedDiffs) {
+      add += d.additions ?? 0;
+      del += d.deletions ?? 0;
+    }
+    commit.additions = add;
+    commit.deletions = del;
   }
 
   // 7. Sort commits chronologically (newest first)

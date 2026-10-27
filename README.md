@@ -104,14 +104,28 @@ Simulated: the lab's working tree and index live in memory, and there is no merg
    - Parses commits, directory trees, and blobs; resolves `HEAD`, `refs/heads/*`, `packed-refs`, and reflogs (`logs/HEAD`).
    - Automatically computes commit diffs (`added`, `modified`, `deleted`) between adjacent commits and parent pointers.
 
-2. **Interactive Commit Explorer & Line Diff Inspector (`CommitHistoryView.tsx`)**:
-   - **KPI Metrics**: Active branch, commit count, contributor velocity, and date ranges.
+2. **Interactive Commit Explorer & Multi-Lane Branch DAG (`CommitHistoryView.tsx`)**:
+   - **Multi-Lane SVG Git DAG**: Automatically assigns branch tracks to concurrent branches and draws smooth cubic bezier curves (`#8B5CF6`, `#06B6D4`, `#F59E0B`, `#EC4899`, `#10B981`) for branch splits and merge joins with distinctive double-ring merge nodes and pulsating HEAD indicators.
+   - **Exact Diff Counters & 5-Block Diff Stat Meters**: Shows `+add / -del` line counter pills on each commit and GitHub-style 5-block proportional green/red diff meters next to every modified file chip.
+   - **Commit Blast Radius & Impact Radar (5th Inspector Tab)**: Connects each Git commit directly to the codebase AST and import graph:
+     - Calculates overall blast radius level (*Isolated / Leaf*, *Low*, *Moderate*, *High*, *Critical Risk*).
+     - Identifies all direct downstream importing modules affected by the commit.
+     - Maps affected functions, types, and exported symbols.
+     - **Test Safety Net**: Verifies which test suites cover the modified files, warning reviewers when changes are unshielded.
+     - 1-click pivot to open the 3D/2D architecture visualizer focused on the affected files.
+   - **Recursive Expandable Snapshot File Explorer (`Snapshot Tree` Tab)**:
+     - Fully recursive directory tree of the commit's snapshot reconstructed from tree entries.
+     - Real-time search filter with instant file matching across deep directory paths.
+     - Expand all / Collapse all toggles and collapsible folder nodes with item counts.
+     - File type indicators and instant inline code viewer with line numbering and copy button.
+   - **KPI Metrics**: Active branch, commit count, contributor velocity, total additions/deletions, and date ranges.
    - **Branch & Message Filtering**: Instant filter chips for branches and query search.
-   - **4-Tab Inspector**:
+   - **5-Tab Inspector**:
      - *Overview*: Commit metadata, parent commits, authored timestamp, and tree pointers.
      - *Message*: Complete commit log with 1-click clipboard copy.
-     - *Changes*: File change badges (`+A`, `~M`, `-D`), with full unified and split diff views via `<DiffLines />`.
-     - *Snapshot Tree*: Interactive tree view with inline code previews for text blobs.
+     - *Changes*: File change badges (`+A`, `~M`, `-D`), line statistics, 5-block diff meters, and unified/split diffs via `<DiffLines />`.
+     - *Snapshot Tree*: Recursive folder hierarchy, file search, and instant inline code viewer.
+     - *Impact Radar*: Architectural blast radius, downstream importing modules, affected symbols, and test coverage safety net.
 
 3. **Architectural Choke-Points & Blast Radius Radar (`AnalyzeApp.tsx`)**:
    - Identifies high fan-in modules (`importedBy >= 3`) as **Architectural Choke-Points**.
@@ -136,14 +150,16 @@ Simulated: the lab's working tree and index live in memory, and there is no merg
 - **Option D (Resume from Vault)**: Click **"Resume saved project"** or open the project picker to switch instantly between previously analyzed repositories stored offline in your browser's IndexedDB vault.
 
 #### 2. Navigating the Git Commit Explorer
-- **Branch Filtering**: Use the **Branch** dropdown or click quick branch filter chips (`All`, `main`, etc.) to narrow the timeline to specific feature branches.
-- **Search Query**: Type in the search box to find commits by commit summary, SHA hash, author name, or author email in real-time.
+- **Multi-Lane DAG Graph**: Visually trace branches and merges on the left timeline. The active branch is rendered with glowing rings, while merge commits show double-ring nodes with incoming bezier curves.
+- **Branch Filtering**: Use the **Branch** filter buttons (`All`, `main`, etc.) to narrow the timeline to specific branches.
+- **Search Query**: Type in the search box to filter commits by summary, SHA hash, author name, or author email in real-time.
 - **Inspecting a Commit**:
   - Click any commit row in the timeline rail. The right-hand **Commit Inspector** automatically synchronizes.
   - **Overview Tab**: Inspect author metadata, ISO timestamps, full 40-character SHA-1, root tree hash, and clickable parent commit buttons to walk the commit DAG.
   - **Message Tab**: Read full commit messages with a 1-click clipboard copy button.
-  - **Changes Tab**: View file changes (`+A Added`, `~M Modified`, `-D Deleted`). Toggle between **Unified** and **Split** diff modes powered by syntax-colored line diffing.
-  - **Snapshot Tree Tab**: Inspect root directory entries recorded in that commit's tree. Click the eye icon next to any text file to open an inline syntax preview with line counts.
+  - **Changes Tab**: View file changes (`+A Added`, `~M Modified`, `-D Deleted`) with 5-block diff meters and exact line insertions/deletions. Toggle between **Unified** and **Split** diff modes powered by syntax-colored line diffing.
+  - **Snapshot Tree Tab**: Explore the full recursive directory tree of that commit snapshot. Use the search bar to locate any file (e.g. `.tsx` or `button`), toggle folders, and click the eye icon to preview file contents inline.
+  - **Impact Radar Tab**: See the commit's architectural blast radius. Inspect which downstream modules import the changed files, check which functions/symbols are impacted, and verify test coverage.
 - **Terminal Checkout**: Click the copy icon on the `git checkout <sha>` pill to easily copy the exact command for your local terminal.
 
 #### 3. Analyzing Architectural Choke-Points & Topology

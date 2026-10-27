@@ -795,6 +795,7 @@ function Report({
       {hasCommits && activeTab === "commits" && (
         <CommitHistoryView
           repo={gitRepo}
+          architectureResult={result}
           onSwitchToArchitecture={() => setActiveTab("architecture")}
         />
       )}

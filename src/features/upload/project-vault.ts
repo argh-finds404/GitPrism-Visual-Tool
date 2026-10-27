@@ -80,6 +80,7 @@ export function serializeGitRepo(repo: ParsedGitRepo | null | undefined) {
     totalCommits: repo.totalCommits,
     contributors: repo.contributors,
     timeSpan: repo.timeSpan,
+    treesByOid: Array.from(repo.treesByOid?.entries() || []),
     blobsByOid: Array.from(repo.blobsByOid?.entries() || []),
   };
 }
@@ -90,12 +91,12 @@ export function rehydrateGitRepo(
 ): ParsedGitRepo | null {
   if (!serialized || !serialized.commits) return null;
   const commitsByOid = new Map<string, GitCommit>();
-  const treesByOid = new Map<string, GitTreeEntry[]>();
+  const treesByOid = new Map<string, GitTreeEntry[]>(serialized.treesByOid || []);
   const blobsByOid = new Map<string, string>(serialized.blobsByOid || []);
 
   for (const c of serialized.commits as GitCommit[]) {
     commitsByOid.set(c.oid, c);
-    if (c.tree && c.treeEntries) {
+    if (c.tree && c.treeEntries && !treesByOid.has(c.tree)) {
       treesByOid.set(c.tree, c.treeEntries);
     }
   }

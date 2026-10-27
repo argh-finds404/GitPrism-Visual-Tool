@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, Home } from "lucide-react";
+import { ChevronDown, FolderOpen, Home } from "lucide-react";
 import { STUDIOS, type StudioId } from "./studios";
 import { usePrefersReducedMotion } from "@/lib/theme";
 
@@ -71,6 +71,16 @@ export function StudioSwitch({ current }: { current: StudioId }) {
               </li>
             ))}
             <li role="none" className="mt-1 border-t border-[var(--line)] pt-1">
+              <Link
+                role="menuitem"
+                href="/analyze"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12.5px] text-[var(--ink-2)] transition-colors hover:bg-white/8"
+              >
+                <FolderOpen size={13} /> Analyse your own project
+              </Link>
+            </li>
+            <li role="none">
               <Link
                 role="menuitem"
                 href="/"

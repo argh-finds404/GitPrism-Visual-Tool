@@ -12,6 +12,7 @@ const links = [
   { href: "#playground", label: "Explore" },
   { href: "#how", label: "How it works" },
   { href: "#learn", label: "Learn" },
+  { href: "/analyze", label: "Your project" },
 ];
 
 /** Desktop menu for the studios; closes on outside click, Escape or a choice. */

@@ -52,6 +52,36 @@ MergeLab's three-way merge is a diff3 with Git's default (zealous) refinements. 
 
 Simulated: the lab's working tree and index live in memory, and there is no merging, packing, remotes or `.git` directory. The Studio's Agent Hub uses built-in rules; live MCP connections need a server-side bridge that isn't included.
 
+## Analysing your own project
+
+`/analyze` reads a folder you pick and reports its structure: the dependency graph, import
+cycles, imports that resolve to nothing, and the files everything leans on.
+
+**It is read in your browser.** The files are parsed with the same analyser the Studios use, in
+the tab, and are not uploaded. The limits are 400 source files and 2 MB; `node_modules`, build
+output and anything matching a secret pattern (`.env*`, `.pem`, `.key`) are skipped before being
+read, and the result states exactly what it left out.
+
+**Nothing you upload is executed.** The analyser only parses. The one thing this application ever
+runs is its own bundled fixture — see "Executing repository code" below. That is why an uploaded
+project gets structural analysis and not ChangeVerse or ProofGraph, which need to run tests.
+
+Because there is no "before" to compare against, an uploaded project is analysed as a single
+snapshot: structure, not a diff.
+
+### Saving a project (optional, needs a database)
+
+"Save and get a link" is a separate, explicit step that uploads the source to the deployment's
+Postgres so it can be reopened at `/analyze/<id>`. Saved projects expire after 7 days. The server
+re-applies the same source-only, no-secrets, size-limited rules rather than trusting the client.
+
+Without `DATABASE_URL`, everything above still works; only saving returns 503 and says so.
+
+```bash
+cp .env.example .env            # then point DATABASE_URL at any Postgres
+npx prisma migrate deploy       # applies prisma/migrations
+```
+
 ## Executing repository code
 
 Three features run real code to produce real results: TimeFold's regression hunt, ChangeVerse's

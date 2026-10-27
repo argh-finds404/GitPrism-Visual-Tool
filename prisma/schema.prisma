@@ -53,3 +53,22 @@ model Ref {
 
   @@id([workspaceId, name])
 }
+
+/// A project someone uploaded for structural analysis.
+///
+/// Saving is opt-in: by default a picked folder is read and analysed in the browser and never
+/// leaves it. A saved project is other people's source code, so it carries an expiry and is
+/// pruned rather than kept indefinitely. Nothing stored here is ever executed.
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  /// Deleted after this moment; set on write rather than relying on a manual clean-up.
+  expiresAt DateTime
+  fileCount Int
+  bytes     Int
+  /// path -> source text, the same shape the analyser takes.
+  files     Json
+
+  @@index([expiresAt])
+}

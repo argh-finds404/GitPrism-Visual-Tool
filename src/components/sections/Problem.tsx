@@ -1,0 +1,177 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useInView } from "motion/react";
+import { Chapter } from "@/components/ui/Chapter";
+import { Aurora } from "@/components/ui/Aurora";
+import { usePrefersReducedMotion } from "@/lib/theme";
+import { hashBlob, hashCommit, hashTree, short } from "@/lib/git";
+import { BASE_TIME, commits, treeEntries } from "@/lib/sample";
+
+// A real change: hello.txt goes from one line to two different lines (+2 −1),
+// so the commit, tree and blob below are exactly what Git would write.
+const newHello = hashBlob(`Hello, GitPrism!\nNow with a homepage.\n`);
+const newTree = hashTree(treeEntries.map((e) => (e.name === "hello.txt" ? { ...e, oid: newHello } : e)));
+const newCommit = hashCommit({ tree: newTree, parents: [commits.c2.oid], message: "Update homepage", time: BASE_TIME + 5400 });
+const commitId = short(newCommit);
+
+const sealed = [
+  { kind: "commit", oid: newCommit, color: "var(--c-commit)" },
+  { kind: "tree", oid: newTree, color: "var(--c-tree)" },
+  { kind: "blob", oid: newHello, color: "var(--c-blob)" },
+] as const;
+
+const script = [
+  { kind: "cmd", text: "git add ." },
+  { kind: "cmd", text: 'git commit -m "Update homepage"' },
+  { kind: "out", text: `[main ${commitId}] Update homepage` },
+  { kind: "out", text: " 1 file changed, 2 insertions(+), 1 deletion(-)" },
+] as const;
+
+const questions = ["What did Git actually save?", "Where did the content go?", "Why is the old version still there?"];
+
+const ease = [0.22, 1, 0.36, 1] as const;
+
+/** Types the session once it scrolls into view, then reports that the command has finished. */
+function Terminal({ onDone }: { onDone: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-20% 0px" });
+  const reduce = usePrefersReducedMotion();
+  const [shown, setShown] = useState(0); // characters revealed across the whole script
+
+  const total = script.reduce((n, l) => n + l.text.length, 0);
+
+  useEffect(() => {
+    if (!inView || reduce) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setShown(i);
+      if (i >= total) {
+        clearInterval(id);
+        onDone();
+      }
+    }, 28);
+    return () => clearInterval(id);
+  }, [inView, reduce, total, onDone]);
+
+  useEffect(() => {
+    if (inView && reduce) onDone();
+  }, [inView, reduce, onDone]);
+
+  const revealed = reduce && inView ? total : shown;
+  const starts = script.map((_, i) => script.slice(0, i).reduce((n, l) => n + l.text.length, 0));
+  return (
+    <div
+      ref={ref}
+      className="overflow-hidden rounded-2xl border border-night-line bg-night text-[#e9e6f2] shadow-[0_40px_80px_-40px_rgb(40_20_110/0.55)]"
+    >
+      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+        <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+        <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+        <span className="ml-3 text-[0.8rem] text-white/50">~/homepage</span>
+      </div>
+      <pre className="min-h-[188px] px-5 py-5 font-mono text-[0.88rem] leading-7" aria-label="Terminal session">
+        {script.map((line, i) => {
+          const budget = revealed - starts[i];
+          const visible = line.text.slice(0, Math.max(0, budget));
+          const typing = budget > 0 && budget < line.text.length;
+          if (!visible && i > 0) return null;
+          return (
+            <div key={i} className={line.kind === "out" ? "text-white/60" : ""}>
+              {line.kind === "cmd" && <span className="mr-2 select-none text-[#b6a0ff]">$</span>}
+              {visible}
+              {typing && (
+                <span className="ml-0.5 inline-block h-4 w-2 translate-y-0.5 animate-pulse bg-[#b6a0ff]" />
+              )}
+            </div>
+          );
+        })}
+      </pre>
+    </div>
+  );
+}
+
+export function Problem() {
+  // The story waits for the command: questions, then the objects it wrote, then the verdict.
+  const [ran, setRan] = useState(false);
+  const done = useCallback(() => setRan(true), []);
+  const reduce = usePrefersReducedMotion();
+  const show = (delay: number) => ({
+    initial: false as const,
+    animate: ran ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 },
+    transition: { duration: reduce ? 0 : 0.6, delay: reduce ? 0 : delay, ease },
+  });
+
+  return (
+    <section id="problem" aria-labelledby="problem-title" className="relative overflow-hidden py-28 md:py-40">
+      <Aurora tones={["violet", "magenta"]} />
+      <div className="shell grid gap-14 lg:grid-cols-12 lg:gap-10">
+        <div className="lg:col-span-6">
+          <Chapter n={1} name="the problem" id="problem-title" title={<>You know the command. But do you know what changed?</>}>
+            <p>
+              You run <code className="rounded bg-violet-wash px-1.5 py-0.5 font-mono text-[0.92em] text-violet-ink">git commit</code>.
+              A success message appears. Then the questions start.
+            </p>
+          </Chapter>
+
+          <ul className="mt-10 space-y-3">
+            {questions.map((q, i) => (
+              <motion.li
+                key={q}
+                {...show(0.15 + i * 0.35)}
+                className="flex items-baseline gap-4 border-b border-line pb-3 text-[1.15rem] text-ink"
+              >
+                <span className="display text-2xl text-violet">?</span>
+                {q}
+              </motion.li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-col justify-end lg:col-span-6 lg:pl-6">
+          <Terminal onDone={done} />
+          <motion.p {...show(1.3)} className="mt-6 text-[0.85rem] text-ink-3">
+            That one command wrote three objects. Hover to unseal them.
+          </motion.p>
+          <motion.ul {...show(1.45)} className="mt-2.5 grid grid-cols-3 gap-3" inert={!ran}>
+            {sealed.map((o) => (
+              <li key={o.kind}>
+                <a
+                  href="#how"
+                  className="group relative block h-24 overflow-hidden rounded-xl border border-line bg-surface/70 p-3 transition-[border-color,box-shadow] duration-300 hover:shadow-[0_14px_40px_-18px_var(--violet)] focus-visible:shadow-[0_14px_40px_-18px_var(--violet)]"
+                  style={{ ["--obj" as string]: o.color }}
+                  aria-label={`${o.kind} ${short(o.oid)}: see how Git builds it`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-30 transition-opacity duration-500 group-hover:opacity-70"
+                    style={{ background: `radial-gradient(closest-side, ${o.color}, transparent)` }}
+                  />
+                  <svg width="18" height="18" viewBox="0 0 12 12" aria-hidden="true" className="relative">
+                    {o.kind === "blob" && <circle cx="6" cy="6" r="4.8" fill={o.color} />}
+                    {o.kind === "tree" && <rect x="1.4" y="1.4" width="9.2" height="9.2" rx="1.6" fill={o.color} />}
+                    {o.kind === "commit" && <path d="M6 .8 11.2 6 6 11.2.8 6Z" fill={o.color} />}
+                  </svg>
+                  <span className="relative mt-3 block font-mono text-[0.72rem] uppercase tracking-[0.1em] text-ink-3 transition-colors group-hover:text-ink group-focus-visible:text-ink">
+                    <span className="group-hover:hidden group-focus-visible:hidden">sealed</span>
+                    <span className="hidden group-hover:inline group-focus-visible:inline" style={{ color: o.color }}>
+                      {o.kind}
+                    </span>
+                  </span>
+                  <span className="relative block font-mono text-[0.85rem] text-ink blur-[5px] transition-[filter] duration-500 group-hover:blur-0 group-focus-visible:blur-0">
+                    {short(o.oid)}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </motion.ul>
+          <motion.p {...show(2.1)} className="mt-10 display text-[clamp(1.5rem,2.4vw,2.1rem)] leading-tight text-ink">
+            The command worked. <span className="text-ink-3">The mental model is still missing.</span>
+          </motion.p>
+        </div>
+      </div>
+    </section>
+  );
+}

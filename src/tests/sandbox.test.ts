@@ -1,0 +1,388 @@
+// What keeps executing repository code safe, pinned down.
+//
+// Two separate claims are tested here, because they protect against different things:
+//   1. only code that is already committed to the bundled fixture can ever be executed, which is
+//      enforced by the route handlers and is the control that actually matters;
+//   2. inside the runner, a test body cannot reach the host realm, read secrets or run forever.
+//
+// The second is defence in depth, not a security boundary: `node:vm` is documented as not being
+// one. These tests exist so the known holes stay closed, not to claim the VM is escape-proof.
+
+import { describe, expect, it } from "vitest";
+import { fixtureHistory, FIXTURE } from "@/features/impact-analysis/fixture";
+import { runFixtureTest, severed } from "@/features/timefold/test-runner";
+import { POST as runTest } from "@/app/api/repos/[owner]/[repo]/run-test/route";
+import { POST as preflight } from "@/app/api/repos/[owner]/[repo]/proofgraph/route";
+
+/** Run a hostile test body through the server runner. */
+function hostile(body: string, extra: Record<string, string> = {}) {
+  const files = { ...extra, "tests/x.test.ts": `test("x", () => {\n${body}\n});\n` };
+  return runFixtureTest(files, "tests/x.test.ts", "x");
+}
+
+/** Call a route handler the way Next would, without a server. */
+async function call(
+  handler: (req: never, ctx: never) => Promise<Response>,
+  params: { owner: string; repo: string },
+  body: unknown,
+) {
+  const req = new Request("http://test.local/api", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+  const res = await handler(req as never, { params: Promise.resolve(params) } as never);
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+
+const FIX = { owner: FIXTURE.owner, repo: FIXTURE.repo };
+
+describe("the runner cannot reach outside itself", () => {
+  // Every one of these reached the real `process`, `fs` and 134 environment variables before
+  // host values had their prototypes severed.
+  const vectors: [string, string][] = [
+    ["the expect helper", `expect.constructor("return process")().pid;`],
+    ["the console stub", `console.log.constructor("return process")().pid;`],
+    ["the module's own exports object", `exports.constructor.constructor("return process")().pid;`],
+    ["the require function", `require.constructor("return process")().pid;`],
+    ["a matcher object", `expect(1).constructor.constructor("return process")().pid;`],
+  ];
+
+  for (const [name, body] of vectors) {
+    it(`cannot compile host code through ${name}`, () => {
+      const out = hostile(body);
+      expect(out.status).not.toBe("pass");
+      expect(out.detail).not.toMatch(/\d{3,}/); // no pid came back
+      expect(out.detail).toMatch(/is not a function|Cannot read properties of undefined/);
+    });
+  }
+
+  it("cannot reach the host realm through an imported module", () => {
+    const out = hostile(`require("../src/a").constructor.constructor("return process")().pid;`, {
+      "src/a.ts": `export function a() { return 1; }\n`,
+    });
+    expect(out.status).not.toBe("pass");
+    expect(out.detail).toMatch(/Cannot read properties of undefined/);
+  });
+
+  it("leaves no global environment to read even if it got that far", () => {
+    const out = hostile(`throw new Error("env:" + typeof process + " req:" + typeof require("fs"));`);
+    expect(out.status).not.toBe("pass");
+    expect(out.detail).not.toMatch(/env:object/);
+  });
+});
+
+describe("an error is a value too, and must not carry the host realm", () => {
+  // Severing the prototypes of values passed IN was not enough: errors travel outward. Each of
+  // these reached the real `process` until boundary errors were rebuilt inside the context.
+  const caught: [string, string, Record<string, string>][] = [
+    ["an unresolved import", `try { require("./nothing-here"); } catch (e) { P(e); }`, {}],
+    [
+      "a module that will not compile",
+      `try { require("../src/bad"); } catch (e) { P(e); }`,
+      { "src/bad.ts": `const = ;\n` },
+    ],
+    ["a failed assertion", `try { expect(1).toBe(2); } catch (e) { P(e); }`, {}],
+    ["a failed negated matcher", `try { expect(1).not.toBe(1); } catch (e) { P(e); }`, {}],
+    ["a refused file", `try { require("../secrets.json"); } catch (e) { P(e); }`, { "secrets.json": "{}\n" }],
+  ];
+
+  for (const [name, body, files] of caught) {
+    it(`cannot compile host code through ${name}`, () => {
+      const probe = `function P(e) { if (e && e.constructor) { throw new Error("PID " + e.constructor.constructor("return process")().pid); } throw new Error("no ctor"); }\n${body}`;
+      const out = hostile(probe, files);
+      expect(out.status).not.toBe("pass");
+      expect(out.detail).not.toMatch(/^PID \d+/);
+      expect(out.detail).toMatch(/process is not defined|no ctor/);
+    });
+  }
+
+  it("cannot compile host code through the context's own global", () => {
+    const out = hostile(`
+      const c = globalThis.constructor;
+      if (c) throw new Error("PID " + c.constructor("return process")().pid);
+      throw new Error("global has no constructor");
+    `);
+    expect(out.detail).not.toMatch(/^PID \d+/);
+  });
+});
+
+describe("only source modules can be loaded", () => {
+  const SECRET = "SUPER-SECRET-VALUE";
+
+  // Naming secrets to refuse was a denylist, and it leaked: any commit file whose contents
+  // happened to parse as JavaScript could be imported and read back.
+  const refused = [".env", ".env.local", "id.key", "server.pem", "id_rsa", ".npmrc", "credentials.json", "NOTES.md", "config.json", "creds"];
+
+  for (const path of refused) {
+    it(`refuses ${path}`, () => {
+      const out = hostile(`throw new Error("READ " + JSON.stringify(require("../${path}")));`, {
+        [path]: `export const secret = "${SECRET}";\n`,
+      });
+      expect(out.detail).not.toContain(SECRET);
+      expect(out.detail).toMatch(/is not a source module and is never loaded/);
+    });
+  }
+
+  it("still loads a genuine source module", () => {
+    const out = hostile(`if (require("../src/a").a() !== 1) throw new Error("wrong");`, { "src/a.ts": `export function a() { return 1; }\n` });
+    expect(out.status).toBe("pass");
+  });
+
+  it("does not echo a refused file's contents through a compile error", () => {
+    const out = hostile(`try { require("../broken.ts"); } catch (e) { throw new Error("MSG " + e.message); }`, {
+      "broken.ts": `const x = ;\n// ${SECRET}\n`,
+    });
+    expect(out.detail).not.toContain(SECRET);
+  });
+});
+
+describe("the time limit covers asynchronous work too", () => {
+  // The watchdog bounds synchronous execution only. Before `microtaskMode: "afterEvaluate"`,
+  // a promise callback ran after it had gone and blocked the event loop for as long as it liked.
+  it("stops a microtask that would outlive the limit", () => {
+    const t0 = Date.now();
+    const out = hostile(`Promise.resolve().then(() => { const s = Date.now(); while (Date.now() - s < 4000) {} });`);
+    const elapsed = Date.now() - t0;
+    expect(out.status).toBe("error");
+    expect(out.detail).toMatch(/Timed out/);
+    expect(elapsed).toBeLessThan(3000);
+  });
+
+  it("stops a chain of microtasks", () => {
+    const t0 = Date.now();
+    const out = hostile(`
+      for (let i = 0; i < 20; i++) Promise.resolve().then(() => { const s = Date.now(); while (Date.now() - s < 300) {} });
+    `);
+    expect(out.status).toBe("error");
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+
+  it("stops a microtask that reschedules itself for ever", () => {
+    const t0 = Date.now();
+    const out = hostile(`const again = () => Promise.resolve().then(again); again();`);
+    expect(out.status).toBe("error");
+    expect(Date.now() - t0).toBeLessThan(3000);
+  });
+
+  it("does not block the event loop after the runner returns", async () => {
+    hostile(`Promise.resolve().then(() => { const s = Date.now(); while (Date.now() - s < 4000) {} });`);
+    const t0 = Date.now();
+    await new Promise((r) => setImmediate(r));
+    // If a microtask had survived, the loop would have been held for seconds here.
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
+  it("still reports a test that returns a promise as unsupported", () => {
+    const out = runFixtureTest(
+      { "tests/a.test.ts": `test("p", () => Promise.resolve(1));\n` },
+      "tests/a.test.ts",
+      "p",
+    );
+    expect(out.status).toBe("error");
+    expect(out.detail).toMatch(/Async tests are not supported/);
+  });
+});
+
+describe("the fixture itself cannot trigger the unfixed rejection risk", () => {
+  // An unhandled rejection from the context reaches the host, where Node's default is to end
+  // the process, and it cannot be contained from inside a synchronous runner. What keeps it
+  // unreachable is that no fixture file can produce one. If that stops being true, this fails.
+  it("contains no promises or async code in any executable fixture file", () => {
+    const offenders: string[] = [];
+    for (const commit of fixtureHistory().all) {
+      for (const [path, src] of Object.entries(commit.files)) {
+        if (!/\.(ts|tsx|js|jsx)$/.test(path)) continue;
+        if (/\basync\b|\bawait\b|\bPromise\b|\.then\s*\(/.test(src)) offenders.push(`${commit.message}: ${path}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("a test cannot run forever", () => {
+  it("stops an infinite loop", () => {
+    const out = hostile(`while (true) {}`);
+    expect(out.status).toBe("error");
+    expect(out.detail).toMatch(/Timed out/);
+  });
+
+  it("stops unbounded allocation", () => {
+    const out = hostile(`const a = []; while (true) a.push(new Array(1e6).fill(7));`);
+    expect(out.status).toBe("error");
+    expect(out.detail).toMatch(/Timed out/);
+  });
+
+  it("stops a module body that never returns", () => {
+    const out = runFixtureTest(
+      { "src/slow.ts": `while (true) {}\nexport function s() { return 1; }\n`, "tests/s.test.ts": `import { s } from "../src/slow";\ntest("s", () => { s(); });\n` },
+      "tests/s.test.ts",
+      "s",
+    );
+    expect(out.status).toBe("error");
+  });
+});
+
+describe("hardening did not change what the runner reports", () => {
+  const files = {
+    "src/m.ts": `export function two() { return 2; }\n`,
+    "tests/ok.test.ts": `import { two } from "../src/m";\ntest("works", () => { expect(two()).toBe(2); });\n`,
+  };
+
+  it("still passes a passing test", () => {
+    expect(runFixtureTest(files, "tests/ok.test.ts", "works").status).toBe("pass");
+  });
+
+  it("still reports a real failure with its message", () => {
+    const broken = { ...files, "src/m.ts": `export function two() { return 3; }\n` };
+    const out = runFixtureTest(broken, "tests/ok.test.ts", "works");
+    expect(out.status).toBe("fail");
+    expect(out.detail).toBe("Expected 2, received 3");
+  });
+
+  it("still reports an absent test as missing", () => {
+    expect(runFixtureTest(files, "tests/ok.test.ts", "nope").status).toBe("missing");
+    expect(runFixtureTest(files, "tests/gone.test.ts", "works").status).toBe("missing");
+  });
+});
+
+describe("module resolution uses own properties only", () => {
+  // `in` walks the prototype chain, so these names all reported present and handed back a
+  // function where a file's source was expected.
+  for (const name of ["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty"]) {
+    it(`does not resolve "${name}" to an Object.prototype member`, () => {
+      const out = hostile(`throw new Error("GOT " + typeof require("../${name}"));`, { "src/a.ts": `export const a = 1;\n` });
+      expect(out.detail).not.toMatch(/GOT (function|object)/);
+      expect(out.detail).toMatch(/cannot resolve|not a source module/);
+    });
+  }
+
+  it("still resolves a real neighbouring module", () => {
+    const out = hostile(`if (require("../src/a").a !== 1) throw new Error("wrong");`, { "src/a.ts": `export const a = 1;\n` });
+    expect(out.status).toBe("pass");
+  });
+
+  it("reports an inherited name given as the test path as missing", () => {
+    for (const path of ["constructor", "toString", "__proto__"]) {
+      expect(runFixtureTest({ "tests/a.test.ts": `test("a", () => {});\n` }, path, "a").status).toBe("missing");
+    }
+  });
+});
+
+describe("severing survives awkward values", () => {
+  it("does not recurse for ever on a cyclic matcher result", () => {
+    // `severed` walks nested values; a cycle used to run the stack out.
+    const cyclic: Record<string, unknown> = { name: "loop" };
+    cyclic.self = cyclic;
+    cyclic.nested = { back: cyclic };
+    expect(() => severed(cyclic)).not.toThrow();
+    expect(Object.getPrototypeOf(cyclic)).toBeNull();
+    expect(Object.getPrototypeOf(cyclic.nested as object)).toBeNull();
+  });
+
+  it("leaves ordinary values working after severing", () => {
+    const fn = severed((a: number, b: number) => a + b);
+    expect(fn(2, 3)).toBe(5);
+    expect((fn as unknown as { constructor?: unknown }).constructor).toBeUndefined();
+  });
+});
+
+describe("one run cannot contaminate the next", () => {
+  const clean = {
+    "src/m.ts": `export function two() { return 2; }\n`,
+    "tests/ok.test.ts": `import { two } from "../src/m";\ntest("works", () => { expect(two()).toBe(2); });\n`,
+  };
+
+  it("leaves no trace on globals a later run would see", () => {
+    hostile(`Object.prototype.__pg = "polluted"; Array.prototype.push = () => {};`);
+    const after = hostile(`
+      if (({}).__pg) throw new Error("LEAKED object prototype");
+      const a = []; a.push(1);
+      if (a.length !== 1) throw new Error("LEAKED array prototype");
+    `);
+    expect(after.status).toBe("pass");
+  });
+
+  it("leaves the shared matchers unharmed for later runs", () => {
+    hostile(`expect(1).toBe = () => { throw new Error("hijacked"); };`);
+    expect(runFixtureTest(clean, "tests/ok.test.ts", "works").status).toBe("pass");
+  });
+
+  it("gives each run its own module instances", () => {
+    const counter = {
+      "src/c.ts": `let n = 0;\nexport function bump() { n += 1; return n; }\n`,
+      "tests/c.test.ts": `import { bump } from "../src/c";\ntest("first", () => { expect(bump()).toBe(1); });\n`,
+    };
+    expect(runFixtureTest(counter, "tests/c.test.ts", "first").status).toBe("pass");
+    expect(runFixtureTest(counter, "tests/c.test.ts", "first").status).toBe("pass");
+  });
+});
+
+describe("only committed fixture code can be executed", () => {
+  const head = fixtureHistory().commits.at(-1)!;
+
+  it("runs a real test at a real commit", async () => {
+    const r = await call(runTest, FIX, { oid: head.oid, test: "tests/pricing.test.ts#discounts large carts" });
+    expect(r.status).toBe(200);
+    expect(["pass", "fail"]).toContain(r.body.status);
+  });
+
+  it("refuses any repository but the bundled fixture", async () => {
+    const r = await call(runTest, { owner: "someone", repo: "else" }, { oid: head.oid, test: "a#b" });
+    expect(r.status).toBe(404);
+  });
+
+  it("refuses a commit that is not in this repository", async () => {
+    const r = await call(runTest, FIX, { oid: "0".repeat(40), test: "a#b" });
+    expect(r.status).toBe(404);
+  });
+
+  it("refuses a malformed commit id", async () => {
+    for (const oid of ["", "abc", "../../etc/passwd", "z".repeat(40), `${head.oid} `]) {
+      const r = await call(runTest, FIX, { oid, test: "a#b" });
+      expect(r.status).toBe(400);
+    }
+  });
+
+  it("refuses a malformed test reference", async () => {
+    for (const test of ["", "no-hash", "#leading"]) {
+      const r = await call(runTest, FIX, { oid: head.oid, test });
+      expect(r.status).toBe(400);
+    }
+  });
+
+  it("refuses a body that is not JSON, and one with the wrong types", async () => {
+    expect((await call(runTest, FIX, "not json at all")).status).toBe(400);
+    expect((await call(runTest, FIX, { oid: 42, test: ["x"] })).status).toBe(400);
+  });
+
+  it("cannot be steered outside the commit by a path in the test name", async () => {
+    // Refused before it reaches the runner now; even if it got there, the path would only ever
+    // be looked up in the commit's own file map.
+    const r = await call(runTest, FIX, { oid: head.oid, test: "../../../../etc/passwd#x" });
+    expect(r.status).toBe(400);
+    expect(runFixtureTest(head.files, "../../../../etc/passwd", "x").status).toBe("missing");
+  });
+
+  it("refuses a path that is not a test file, so a request cannot pick a module to execute", async () => {
+    for (const path of ["src/auth/session.ts", "src/infra/db.ts", "README.md", "src/orders/pricing.ts"]) {
+      const r = await call(runTest, FIX, { oid: head.oid, test: `${path}#anything` });
+      expect(r.status).toBe(400);
+      expect(String(r.body.error)).toMatch(/must name a test file/);
+    }
+  });
+
+  it("refuses inherited property names as a test path", async () => {
+    for (const path of ["constructor", "__proto__", "toString", "valueOf"]) {
+      const r = await call(runTest, FIX, { oid: head.oid, test: `${path}#x` });
+      expect(r.status).toBe(400);
+    }
+  });
+
+  it("validates the analysis routes the same way", async () => {
+    expect((await call(preflight, { owner: "someone", repo: "else" }, { candidate: "pull" })).status).toBe(404);
+    expect((await call(preflight, FIX, { candidate: "not-a-candidate" })).status).toBe(404);
+    expect((await call(preflight, FIX, {})).status).toBe(400);
+    expect((await call(preflight, FIX, "}{")).status).toBe(400);
+  });
+});

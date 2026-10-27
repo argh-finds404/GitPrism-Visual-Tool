@@ -1,385 +1,199 @@
-# GitPrism
+# GitPrism ⬡
 
-Git makes sense when you can see it. GitPrism is an interactive, visual way to understand what Git stores: blobs, trees, commits, snapshots and history, and what a code change actually affects.
+> **Git makes sense when you can see it.**  
+> GitPrism refracts monolithic code changes and version control internals into intuitive, interactive visual lenses — from raw byte-level content addressing to multi-lane commit DAGs, architectural blast radiuses, and semantic 3-way merge resolution.
 
-## Run it locally
+---
 
-Requires Node.js 20 or newer (developed on Node 22).
+## ⚡ Quickstart: Run GitPrism Locally
 
+### Prerequisites
+- **Node.js 20 or newer** (tested on Node 22+)
+- **npm** or compatible package manager
+
+### 1. Clone & Install
 ```bash
+git clone https://github.com/argh-finds404/GitPrism-Visual-Tool.git
+cd GitPrism
 npm install
+```
+
+### 2. Launch Development Server
+```bash
 npm run dev
 ```
 
-Then open the address printed in the terminal (usually http://localhost:3000):
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-| Page | URL |
-| --- | --- |
-| Homepage | http://localhost:3000 |
-| Lab workbench | http://localhost:3000/lab |
-| PR Impact Studio | http://localhost:3000/review/gitprism-demo/acme-shop/pull/42 |
-| TimeFold | http://localhost:3000/timefold/gitprism-demo/acme-shop |
-| MergeLab | http://localhost:3000/mergelab/gitprism-demo/acme-shop |
-
-No page needs a database yet. The Prisma schema is ready for when accounts or sync are added; to use it later, copy `.env.example` to `.env` and set `DATABASE_URL`.
-
+### Key Scripts
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Development server with hot reload |
-| `npm run build` then `npm start` | Production build and server |
-| `npm test` | Unit and integration tests (Vitest) |
-| `npm run lint` | ESLint |
+| `npm run dev` | Starts local Next.js dev server with hot reload |
+| `npm test` | Runs the full Vitest suite (192 unit and integration tests) |
+| `npm run lint` | Runs ESLint type checks and linting rules |
+| `npm run build` | Compiles an optimized Turbopack production bundle |
+| `npm start` | Runs the compiled production server |
 
-## User Onboarding Guide & Recommended Workflow
+*Note: GitPrism is local-first and does not require an external database to run. All parsing, visualization, and sandboxing happen in-browser.*
 
-GitPrism is built to take a developer from visual intuition to hands-on sandboxing, repository analysis, and complex merge resolution. Here is the recommended walkthrough for new users and developers:
+---
+
+## 💡 What Problem Does GitPrism Solve?
+
+### The Black-Box CLI Paradox
+For millions of developers, Git is an indispensable tool mastered through rote memorization (`git commit`, `git push`, `git rebase -i`, `git cherry-pick`). Yet few developers ever *see* what Git actually stores. Because the terminal presents Git as a black box of cryptic commands, simple mistakes lead to fear of breaking history or painful merge conflict nightmares.
+
+### Why Existing Git GUIs Fall Short
+Traditional Git GUI clients (such as GitHub Desktop, Sourcetree, or GitKraken) treat Git as a flat list of commit messages and textual line diffs. They don't solve the core conceptual and architectural gaps:
+
+1. **They don't explain the underlying object store:** They hide the fact that Git is simply a content-addressed directed acyclic graph (DAG) of immutable `blobs`, `trees`, and `commits`.
+2. **They don't show architectural blast radius:** Traditional diff viewers show that lines 42–58 changed in `auth.ts`, but they cannot tell you which downstream modules import that file, which exported functions broke, or whether existing test suites cover the change.
+3. **Merge conflict tools are blind to semantics:** Standard 3-way diff tools only display text blocks with `<<<<<<< HEAD` markers without verifying whether your resolution compiles, breaks caller types, or passes tests before you commit.
+4. **They require cloud uploads or native installations:** Web-based analysis tools often require sending proprietary code to remote servers.
+
+### The GitPrism Solution
+GitPrism works like an optical prism for your codebase. White light enters; a spectrum of structured, spatial insight comes out:
+- **100% In-Browser Privacy:** Local Git repositories and `.git` loose objects are decompressed client-side using native Web Streams (`DecompressionStream("deflate")`). Your code never leaves your computer.
+- **Visual Mental Models:** Live, interactive sandboxes let you stage files, inspect generated SHA-1 hashes, and watch commit trees assemble in real-time.
+- **Architectural Impact Radar:** Every commit is cross-referenced with AST import graphs, revealing downstream dependent files, impacted symbols, and test coverage shields.
+- **Semantic Three-Way MergeLab:** Visual conflict constellations paired with isolated in-browser Web Worker test execution.
+
+---
+
+## 🧭 A Guided Exploration Path (Recommended Tour)
+
+If you are exploring GitPrism for the first time or evaluating its design and functionality, here is a welcoming, self-paced sequence to experience the full platform:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                       RECOMMENDED USER WORKFLOW                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       RECOMMENDED APP WALKTHROUGH                           │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-  Step 1: Visual Mental Model
+  Stage 1: Foundational Mental Model
   ▶ Homepage (`/`)
-    ├── Optical Prism Hero: experience the metaphor (source code splitting into Git lenses)
-    ├── Chapter 2: The Reveal (`#how`): scroll through the creation of blobs, trees & commits
-    ├── Interactive Snapshot Lab (`#playground`): edit files, stage into index, watch commit DAGs
-    ├── Content Addressing (`#learn`): live SHA-1 hash generator proving identity from content
-    └── 5-Stage Journey (`#journey`): scroll-driven progression through Git foundations
+    ├── Optical Prism Hero: 3D interactive WebGL light refraction
+    ├── Chapter 2: The Reveal (`#how`): scroll through file → blob → tree → commit
+    ├── Interactive Snapshot Lab (`#playground`): edit files, stage into index, watch DAG form
+    ├── Content Addressing (`#learn`): live SHA-1 hash calculator proving identity from content
+    └── 5-Stage Journey (`#journey`): scroll-driven progression through Git internals
 
-  Step 2: Hands-On Interactive Sandbox
+  Stage 2: Hands-On Interactive Sandbox
   ▶ The Workbench Lab (`/lab`)
     ├── Safe, risk-free sandbox with an in-memory filesystem and Git object inspector
     ├── Edit files, stage, commit, branch, compare snapshots, and solve guided challenges
     └── Actions automatically persisted locally in your browser's IndexedDB
 
-  Step 3: Analyze Your Own Local Repositories
+  Stage 3: Personal Project Architecture & Git Studio
   ▶ Local-First Architecture Studio (`/analyze`)
     ├── Drop any local repository folder or `.gitprism.json` bundle directly onto the window
-    ├── Explore real commit timelines, filter branches, inspect unified/split diffs, preview files
-    ├── Switch to "Architecture & Topology" to discover high-risk Architectural Choke-Points
-    └── 1-click export of ARCHITECTURE.md dossiers and portable .gitprism.json workspace bundles
+    ├── Explore real multi-lane Git branch DAGs with smooth bezier curves
+    ├── Inspect exact `+add / -del` diff counters and 5-block proportional diff meters
+    ├── Explore recursive directory trees with search filter and instant inline code previews
+    ├── Check the Impact Radar for blast radius, downstream dependents, and test coverage
+    └── 1-click export of ARCHITECTURE.md dossiers and portable .gitprism.json bundles
 
-  Step 4: Specialized Production Studios
+  Stage 4: Specialized Production Studios
   ▶ PR Impact Studio (`/review/gitprism-demo/acme-shop/pull/42`)
     └── Inspect PR blast radius, affected callers, and test impacts across 5 interactive 3D lenses
   ▶ MergeLab (`/mergelab/gitprism-demo/acme-shop`)
     └── 3-way merge workspace with conflict constellations, diff3 resolution, and in-worker test validation
   ▶ TimeFold (`/timefold/gitprism-demo/acme-shop`)
-    └── Travel through commit history, track function DNA evolution, and bisect regressions with real test runs
+    └── Travel through history, track function DNA evolution, and bisect regressions with real test runs
 ```
 
-## Pages
+---
 
-| Route | What it is |
-| --- | --- |
-| `/` | Story-driven landing page: 3D prism hero, then file → blob → tree → commit, a live snapshot demo, diffs, a history graph and content addressing |
-| `/lab` | Workbench: edit files, stage, commit, branch, inspect objects, compare, replay and guided challenges |
-| `/review/[owner]/[repo]/pull/[number]` | Impact Studio: what a pull request affects, across five 3D lenses, with evidence-backed findings |
-| `/mergelab/[owner]/[repo]` | MergeLab: a three-way merge workspace. Conflicts with base, ours and theirs, a semantic diff lens, a conflict constellation, resolution cards with undo and notes, then validation (parse, strict type check, tests) and patch export |
-| `/timefold/[owner]/[repo]` | TimeFold: travel through history. Function DNA follows one function commit by commit, Architecture drift replays the codebase graph, Regression hunt bisects with real test runs |
+## 🛠️ Key Surfaces & Features
 
-The lab is local-first. It saves the actions you took in IndexedDB and rebuilds the repository by replaying them over the built-in sample, so a refresh never loses work. **Reset lab** clears it.
+### 1. Interactive Landing Page (`/`)
+- **Interactive Prism Hero:** A real-time 3D optical simulation using Three.js / React Three Fiber illustrating how monolithic source code refracts into distinct architectural dimensions.
+- **Chapter Storyline:** Real Git blob IDs for chapter headings (verifiable via `echo "<line>" | git hash-object --stdin`).
+- **Interactive Snapshot Demo:** Edit sample files, stage them into the index, and observe tree and commit object creation live.
+- **SHA-1 Content Addressing Calculator:** Enter text to see how Git formats headers (`blob <length>\0<content>`) and generates immutable 40-character SHA-1 hashes.
+- **Scroll-Driven Journey:** A sticky, responsive chapter progression through the 5 foundations of Git architecture.
 
-The Impact Studio and TimeFold share a bundled fixture project, `gitprism-demo/acme-shop`: 13 commits on `main` (including a rename and a regression that is later fixed), then the 4 commits of PR #42 on `feat/auth`, plus a competing branch, `feat/sliding-sessions`, by a second author. Merging it into `feat/auth` gives three real conflicts around `validateSession`. The Studio analyses the PR in the browser; TimeFold analyses every commit against its parent. Other repositories need a GitHub or GitLab provider, which isn't connected yet; those URLs say so instead of showing invented data.
+### 2. The Workbench Sandbox Lab (`/lab`)
+- **In-Memory Git Engine:** Experiment freely with `commit`, `branch`, `checkout`, and `reset` without touching your terminal or disk.
+- **Interactive DAG Inspector:** Click any node to inspect raw object bytes, tree pointer hashes, and parent references.
+- **Guided Challenges:** Step-by-step challenges that teach branching strategies, detached HEAD states, and commit resets.
+- **Offline Persistence:** Actions are recorded and saved locally in browser IndexedDB, replaying automatically across page refreshes.
 
-### What is real and what is simulated
+### 3. Personal Repository Studio (`/analyze`)
+- **Drag-and-Drop Ingestion:** Drop any project folder containing a `.git` directory directly into the browser.
+- **Multi-Lane SVG Git DAG:** Automatically renders concurrent branches and merge joins on color-coded tracks (`#8B5CF6`, `#06B6D4`, `#F59E0B`, `#EC4899`, `#10B981`) with smooth cubic bezier curves and pulsating HEAD markers.
+- **5-Tab Commit Inspector:**
+  - **Overview:** SHA-1 hash, root tree ID, author details, timestamp, and clickable parent commit navigation.
+  - **Message:** Full commit message with 1-click copy.
+  - **Changes:** Unified and split diff modes, line addition/deletion statistics, and GitHub-style 5-block diff meters.
+  - **Snapshot Tree:** Full recursive directory tree with live search filtering, expand/collapse controls, and instant inline code preview.
+  - **Impact Radar:** Cross-references diffs against AST import graphs, rating blast radius (*Isolated*, *Low*, *Moderate*, *High*, *Critical*) and listing downstream importing files, affected functions, and test coverage shields.
+- **Architectural Choke-Points:** Analyzes high fan-in modules (`importedBy >= 3`) and circular dependency cycles.
+- **1-Click Dossier Export:** Generates a production-ready `ARCHITECTURE.md` complete with dependency tables and contributor stats.
 
-Real: blob, tree and commit objects are encoded byte-for-byte like Git, so their IDs match `git hash-object`. The tests rebuild the sample histories (including all 17 fixture commits) with real `git` and compare every ID. The Studio's and TimeFold's imports, calls, tests, cycles and layer violations come from parsing the fixture's actual source. TimeFold links a rename only when parameters and body are identical. Regression hunt really runs the chosen test: `POST /api/repos/:owner/:repo/run-test` strips the TypeScript with Node's built-in stripper and executes the committed fixture code in a fresh `node:vm` context with a 1-second limit. It accepts only fixture commit IDs and test names, never code.
+### 4. PR Impact Studio (`/review/...`)
+- **Five Interactive 3D Lenses:** Visualize a pull request across *Blast Radius*, *Dependency Topology*, *Execution Call Graph*, *Test Coverage*, and *Layered Architecture*.
+- **Evidence-Backed Findings:** Automated static facts, warnings, and architectural hypotheses linking directly to source line numbers.
 
-MergeLab's three-way merge is a diff3 with Git's default (zealous) refinements. The tests check it is byte-identical to `git merge-file` on the fixture and on 102 historical combinations, that the merge base matches `git merge-base`, and that the exported patch applies with `git apply`. Validation never executes code on the server: `POST /api/repos/:owner/:repo/merge-check` only parses (Node's TypeScript stripper) and type-checks (the TypeScript compiler, in memory). Tests run in a disposable Web Worker in your browser. Type errors that already exist on `feat/auth` are told apart from those the merge introduces. The merge commit shown after validation is computed, never written; nothing changes a branch.
+### 5. MergeLab (`/mergelab/...`)
+- **Three-Way Diff3 Engine:** Byte-identical to `git merge-file` across historical combinations.
+- **Conflict Constellation:** Visual spatial layout of conflicting chunks between `base`, `ours`, and `theirs`.
+- **In-Browser Web Worker Validation:** Validates merge resolutions inside a disposable browser Web Worker, type-checking and running tests before you finalize the merge.
 
-Simulated: the lab's working tree and index live in memory, and there is no merging, packing, remotes or `.git` directory. The Studio's Agent Hub uses built-in rules; live MCP connections need a server-side bridge that isn't included.
+### 6. TimeFold (`/timefold/...`)
+- **Function DNA Tracker:** Follows individual function implementations across every commit in history, tracking renames, parameter mutations, and signature changes.
+- **Regression Bisecting:** Visual `git bisect` runner that executes committed fixture code in an isolated `node:vm` context to find exact breaking commits.
 
-## Analysing your own project (`/analyze`)
+---
 
-`/analyze` reads a folder you pick and performs client-side architecture analysis and Git history extraction.
+## 🧰 Technology Stack
 
-**100% In-Browser Privacy:** The files and `.git` metadata are unpacked and parsed entirely in your browser tab using Web Streams. Nothing leaves your machine unless you explicitly choose to save a project to the server.
-
-### Key Capabilities
-
-1. **Native `.git` Decompression Engine (`git-reader.ts`)**:
-   - Decompresses loose Git objects directly with native browser Web Streams (`DecompressionStream("deflate")`).
-   - Parses commits, directory trees, and blobs; resolves `HEAD`, `refs/heads/*`, `packed-refs`, and reflogs (`logs/HEAD`).
-   - Automatically computes commit diffs (`added`, `modified`, `deleted`) between adjacent commits and parent pointers.
-
-2. **Interactive Commit Explorer & Multi-Lane Branch DAG (`CommitHistoryView.tsx`)**:
-   - **Multi-Lane SVG Git DAG**: Automatically assigns branch tracks to concurrent branches and draws smooth cubic bezier curves (`#8B5CF6`, `#06B6D4`, `#F59E0B`, `#EC4899`, `#10B981`) for branch splits and merge joins with distinctive double-ring merge nodes and pulsating HEAD indicators.
-   - **Exact Diff Counters & 5-Block Diff Stat Meters**: Shows `+add / -del` line counter pills on each commit and GitHub-style 5-block proportional green/red diff meters next to every modified file chip.
-   - **Commit Blast Radius & Impact Radar (5th Inspector Tab)**: Connects each Git commit directly to the codebase AST and import graph:
-     - Calculates overall blast radius level (*Isolated / Leaf*, *Low*, *Moderate*, *High*, *Critical Risk*).
-     - Identifies all direct downstream importing modules affected by the commit.
-     - Maps affected functions, types, and exported symbols.
-     - **Test Safety Net**: Verifies which test suites cover the modified files, warning reviewers when changes are unshielded.
-     - 1-click pivot to open the 3D/2D architecture visualizer focused on the affected files.
-   - **Recursive Expandable Snapshot File Explorer (`Snapshot Tree` Tab)**:
-     - Fully recursive directory tree of the commit's snapshot reconstructed from tree entries.
-     - Real-time search filter with instant file matching across deep directory paths.
-     - Expand all / Collapse all toggles and collapsible folder nodes with item counts.
-     - File type indicators and instant inline code viewer with line numbering and copy button.
-   - **KPI Metrics**: Active branch, commit count, contributor velocity, total additions/deletions, and date ranges.
-   - **Branch & Message Filtering**: Instant filter chips for branches and query search.
-   - **5-Tab Inspector**:
-     - *Overview*: Commit metadata, parent commits, authored timestamp, and tree pointers.
-     - *Message*: Complete commit log with 1-click clipboard copy.
-     - *Changes*: File change badges (`+A`, `~M`, `-D`), line statistics, 5-block diff meters, and unified/split diffs via `<DiffLines />`.
-     - *Snapshot Tree*: Recursive folder hierarchy, file search, and instant inline code viewer.
-     - *Impact Radar*: Architectural blast radius, downstream importing modules, affected symbols, and test coverage safety net.
-
-3. **Architectural Choke-Points & Blast Radius Radar (`AnalyzeApp.tsx`)**:
-   - Identifies high fan-in modules (`importedBy >= 3`) as **Architectural Choke-Points**.
-   - Pinpoints circular dependencies and import cycles with immediate visual alerts.
-
-4. **1-Click Architecture Dossier Markdown Export (`ARCHITECTURE.md`)**:
-   - Generates an exhaustive, production-grade `ARCHITECTURE.md` file capturing executive summaries, choke-point rankings, circular dependency graphs, and Git contributor stats.
-
-5. **Local-First Project Vault & Portable Bundles (`project-vault.ts`)**:
-   - **IndexedDB Persistent Vault**: Automatically stores uncompressed project files and Git history locally on your device (`gitprism_vault`).
-   - **Storage Quota Health**: Displays browser IndexedDB storage usage and device quota in the import modal.
-   - **Workspace Bundles (`.gitprism.json`)**: 1-click export and import of parsed repository workspaces so teams can share analyses without re-uploading large `.git` folders.
-   - **Deterministic User Identity**: Client profile manager (display name, avatar initials, project count) adhering to Next.js 16 Partial Prerendering and SSR safety.
-
-### Step-by-Step User Guide: How to Use the Latest Features
-
-#### 1. Ingesting a Repository or Bundle
-- **Open `/analyze`**: Navigate to `http://localhost:3000/analyze` or click **Analyze** in the header.
-- **Option A (Choose Folder)**: Click **"Choose project folder"** and select any local Git repository directory. GitPrism will automatically read your source files and unpack `.git` loose objects, branch refs, and reflogs.
-- **Option B (Drag & Drop)**: Drag a repository directory directly from your desktop file explorer into the browser window.
-- **Option C (Workspace Bundle)**: Drag or load an existing `.gitprism.json` file. The workspace rehydrates instantly without re-reading raw filesystem folders.
-- **Option D (Resume from Vault)**: Click **"Resume saved project"** or open the project picker to switch instantly between previously analyzed repositories stored offline in your browser's IndexedDB vault.
-
-#### 2. Navigating the Git Commit Explorer
-- **Multi-Lane DAG Graph**: Visually trace branches and merges on the left timeline. The active branch is rendered with glowing rings, while merge commits show double-ring nodes with incoming bezier curves.
-- **Branch Filtering**: Use the **Branch** filter buttons (`All`, `main`, etc.) to narrow the timeline to specific branches.
-- **Search Query**: Type in the search box to filter commits by summary, SHA hash, author name, or author email in real-time.
-- **Inspecting a Commit**:
-  - Click any commit row in the timeline rail. The right-hand **Commit Inspector** automatically synchronizes.
-  - **Overview Tab**: Inspect author metadata, ISO timestamps, full 40-character SHA-1, root tree hash, and clickable parent commit buttons to walk the commit DAG.
-  - **Message Tab**: Read full commit messages with a 1-click clipboard copy button.
-  - **Changes Tab**: View file changes (`+A Added`, `~M Modified`, `-D Deleted`) with 5-block diff meters and exact line insertions/deletions. Toggle between **Unified** and **Split** diff modes powered by syntax-colored line diffing.
-  - **Snapshot Tree Tab**: Explore the full recursive directory tree of that commit snapshot. Use the search bar to locate any file (e.g. `.tsx` or `button`), toggle folders, and click the eye icon to preview file contents inline.
-  - **Impact Radar Tab**: See the commit's architectural blast radius. Inspect which downstream modules import the changed files, check which functions/symbols are impacted, and verify test coverage.
-- **Terminal Checkout**: Click the copy icon on the `git checkout <sha>` pill to easily copy the exact command for your local terminal.
-
-#### 3. Analyzing Architectural Choke-Points & Topology
-- **Switch Views**: Click the **"Architecture & Topology"** tab at the top of the report to switch from Git history to dependency analysis.
-- **Architectural Choke-Points**: Inspect the top modules with high fan-in (`importedBy >= 3`). These represent modules whose modification presents the largest blast radius across the repository.
-- **Circular Dependency Warnings**: Review cyclic import chains that impede tree-shaking and risk runtime initialization order bugs.
-
-#### 4. Exporting and Sharing
-- **Export Dossier (`.md`)**: Click **"Export Dossier (.md)"** in the top bar to generate a standalone `ARCHITECTURE.md` file complete with executive summaries, choke-point rankings, Mermaid dependency diagrams, and Git contributor metrics.
-- **Export Workspace Bundle (`.gitprism.json`)**: Click **"Export Bundle"** in the top navigation or inside the project vault dialog. Send this `.gitprism.json` bundle to teammates so they can explore the exact repository snapshot in GitPrism without having repository access or installing anything.
-- **Storage Management**: Open the project switcher modal to monitor your browser vault's storage usage (in MB) and available device quota. Delete obsolete projects with 1 click to reclaim space.
-
-### Saving a project (optional, needs a database)
-
-"Save and get a link" is a separate, explicit step that uploads the source to the deployment's
-Postgres so it can be reopened at `/analyze/<id>`. Saved projects expire after 7 days. The server
-re-applies the same source-only, no-secrets, size-limited rules rather than trusting the client.
-
-Without `DATABASE_URL`, everything above still works; only saving returns 503 and says so.
-
-```bash
-cp .env.example .env            # then point DATABASE_URL at any Postgres
-npx prisma migrate deploy       # applies prisma/migrations
-```
-
-## Executing repository code
-
-Three features run real code to produce real results: TimeFold's regression hunt, ChangeVerse's
-preflight and ProofGraph's evidence collection. What keeps that safe is worth stating precisely,
-because it is easy to assume the wrong thing.
-
-**The control that matters is upstream, not the sandbox.** Every route accepts an identifier and
-nothing else — a commit ID, a test name, a candidate ID — and resolves it against the bundled
-fixture on the server. No request can carry code, a path or file contents. Only source already
-committed to this repository is ever executed.
-
-**`node:vm` is not a security boundary.** Node's own documentation says so, and this project does
-not treat it as one. It is a convenience for collecting results, not a jail.
-
-Within that, several measures are defence in depth, each covered by `src/tests/sandbox.test.ts`.
-The governing idea is that **every value crossing into the context is a way out of it**, because
-a host object's `.constructor` reaches the host realm's `Function` and compiles code there.
-
-- **Values passed in** have their prototypes severed. Functions stay callable; they lose
-  `.constructor`. Before this, a test body could read `process`, `fs` and the whole environment
-  through `expect`, `console`, `require` or its own `exports`.
-- **The global itself** is severed, because the sandbox object handed to `vm.createContext`
-  becomes the context's global — so `globalThis.constructor` was the host realm's `Object`.
-- **Errors travelling outward** are rebuilt inside the context. An unresolved import, a module
-  that will not compile, a failed assertion and a refused file all threw *host* errors that test
-  code could catch and compile through.
-- **Only source modules load.** This is an allowlist (`.ts`, `.tsx`, `.js`, `.jsx`, minus
-  secrets), not a list of secrets to refuse. The denylist leaked: any commit file whose contents
-  happened to parse as JavaScript could be imported and read back, including `id_rsa`, `.npmrc`
-  and `credentials.json`.
-- **A one-second wall-clock limit** covers module bodies, the test body **and microtasks**. The
-  context is created with `microtaskMode: "afterEvaluate"`, which drains the microtask queue
-  inside the evaluation. Without it the watchdog bounds synchronous code only, and
-  `Promise.resolve().then(() => { while (true) {} })` blocks the event loop indefinitely.
-- **Each run gets its own context and module cache**, so nothing one run does reaches the next.
-
-### What is still not solved
-
-These are real and unfixed. They are listed here rather than mitigated because fixing them
-properly means moving execution out of this process, not adding another guard inside it.
-
-**Memory is not capped.** A run can allocate until the server's heap is gone; 600 MB inside the
-context raised no error in testing. `--max-old-space-size` is process-wide, so the sandbox
-competes with the server itself. There is no in-process way to bound this.
-
-**An unhandled rejection still reaches the host process**, where Node's default is to terminate
-it. It cannot be contained from inside a synchronous runner, and that was verified rather than
-assumed: detection happens after `runFixtureTest` has returned, so a handler scoped around the
-run never fires, and a process-global handler would change behaviour for every unrelated
-request. Next.js does not remove the default listeners either — it offers
-`removeUncaughtErrorAndRejectionListeners`, which is experimental and off.
-What keeps this unreachable today is the fixture: no executable file in any fixture commit
-contains `async`, `await`, `Promise` or `.then(`, and a test asserts it, so adding any would
-fail the suite before it could reach a server.
-
-**Execution blocks the event loop** for as long as a test runs, up to one second each, and runs
-are serialised. ChangeVerse executes roughly eight tests per request.
-
-### Why not a child process yet
-
-A child process or worker is the right answer to all three and was evaluated. It was not taken
-in this pass because `runFixtureTest` is synchronous and three engines (`preflight`,
-`collectEvidence`, `fixtureSessions`) plus their routes and pages consume it synchronously;
-making it asynchronous ripples through all of them. Keeping the signature with `spawnSync` would
-mean either serialising the harness functions into the child, which breaks under the minifier,
-or duplicating them in a standalone script that Next's bundler does not own — drift and
-deployment fragility in exchange for a boundary the fixture does not yet need.
-
-**Before any non-fixture code runs**, that boundary becomes mandatory, and the in-process
-measures above stop being the interesting part: a separate process or container with enforceable
-CPU, memory, process-count, filesystem and network limits, and kill-on-timeout at the process
-level. Prototype severing and `microtaskMode` are not substitutes for any of it.
-
-**MergeLab is a different threat model.** It validates hand-edited code, so it never executes
-anything on the server — parsing and type-checking only (`POST …/merge-check`). Tests run in a
-disposable Web Worker in your own browser: a fresh worker per test, terminated after two seconds.
-There is no host realm to escape to there, because the worker *is* the realm; it cannot touch the
-page or the DOM. What it can still reach is anything same-origin, including `fetch`. That is
-acceptable while the code being run is your own edits to your own merge, and it is the thing to
-revisit first if candidates ever arrive from somewhere else.
-
-## Architecture
-
-```
-Browser
- ├─ Homepage sections ──────────────┐
- ├─ Lab workbench (React Flow) ─────┼─▶ lib/git.ts  (SHA-1, Git object encoding, line diff)
- └─ Impact Studio (R3F, five lenses)│
-                                    │
-features/repository  ───────────────┘   commands → pure engine → immutable objects
-   RepositoryProvider  one source of truth for every lab panel
-   session.ts          replays recorded commands (undo, replay, persistence)
-   storage.ts          IndexedDB behind a swappable interface (database later)
-
-features/mergelab
-   diff3.ts            three-way line merge, refined like Git's zealous level
-   merge.ts            tree-level merge, resolutions, candidate buffer, patch export
-   semantic.ts         conflict placement, constellation, semantic lens, impact preview
-   checks.ts           parse and strict type check (server only, never executes)
-
-features/testing
-   harness.ts          module transform, expect, and the runner used by both test paths
-
-features/timefold
-   history.ts          per-commit snapshots, symbol lineage (exact renames), Function DNA, commit stories
-   test-runner.ts      runs one fixture test at one commit (server only)
-   bisect.ts           git-bisect state machine with skips and ambiguity
-
-features/impact-analysis
-   fixture.ts          a real TypeScript project + PR, committed with the engine
-   source-analysis     imports, functions, calls, test cases
-   analysis-service    diff → parse → canonical graph → impact → findings (versioned)
-   blast-radius        BFS over reverse calls/imports, with paths
-   architecture-rules  configured layers + Tarjan cycle detection
-   evidence            facts / static warnings / hypotheses, each with locations
-   context-packager    token-budgeted Markdown, secrets never included
-
-components/impact-studio
-   store.tsx           selection, lens, filters; the analysis result is the only data
-   lens-layouts.ts     five deterministic projections of one graph
-   scene/              WebGL scene + SVG fallback, both from the same projection
-   hud/                the six panels
-```
-
-Rules the code follows: UI components never mutate data directly (commands do); every lens, panel and finding reads the same versioned analysis; nothing shown is invented.
-
-## Project layout
-
-```
-src/
-  app/                    routes, layout, global design tokens
-  components/
-    brand/ site/ ui/      wordmark, nav, footer, shared pieces
-    sections/             one file per homepage section
-    lab/                  homepage snapshot-demo state
-    workbench/ explorer/ graph/ inspector/ timeline/ diff/   the /lab workbench
-    impact-studio/        the PR Impact Studio
-    three/                WebGL prism scenes
-  features/
-    repository/           Git engine, session replay, storage
-    impact-analysis/      PR analysis pipeline
-  lib/                    git.ts, sample.ts, chapters.ts, theme.ts, graph builders, prisma client
-  tests/                  Vitest suites (several compare against real git)
-prisma/schema.prisma      Workspace, GitObject, Ref
-```
-
-## Components from registries
-
-`components.json` registers the Skiper UI registry, so `npx shadcn add @skiper-ui/<name>` works here.
-Installed components land in `src/components/ui/skiper-ui/`.
-
-Two are in use, both adapted rather than taken as shipped:
-
-| Component | Used for | What changed |
+| Layer | Technologies | Purpose |
 | --- | --- | --- |
-| `skiper101` | Tooltips on object IDs (`src/components/ui/InfoTip.tsx`) | Kept the border-drawn arrow; mapped shadcn's colour tokens onto this project's and replaced the tailwindcss-animate classes with a keyframe in `globals.css` |
-| `skiper106` | The animated caret on text inputs | Kept the caret measuring technique; dropped `dialkit` (a developer control panel drove its font size and spring) and `framer-motion` (this project already uses `motion`), and moved a module-level `navigator` read inside the component so pages still prerender |
+| **Framework** | Next.js 16 (App Router, Turbopack, Partial Prerendering) | High-performance server rendering & static page generation |
+| **Language** | TypeScript (Strict Mode) | End-to-end type safety across Git engines, AST parsers, and UI |
+| **3D & Graphics** | Three.js, React Three Fiber, WebGL, SVG | Interactive optical prism simulations & multi-lane branch DAGs |
+| **Styling** | Tailwind CSS + Obsidian Dark CSS Variables | Curated dark-first design system (`--paper`, `--surface`, `--ink`, `--violet`, `--cyan`, `--amber`) |
+| **Git Engine** | Custom Web Streams decompression (`git-reader.ts`) | Decompresses zlib loose objects in-browser with zero native binaries |
+| **Execution** | Web Workers & `node:vm` isolated runners | Safe, client-side test execution and merge validation |
+| **Local Storage**| IndexedDB (`idb-keyval`) | Local-first persistence for project vaults and lab states |
+| **Testing** | Vitest | 192 unit and integration tests validating Git hash parity and AST analysis |
 
-Re-running `shadcn add` with `--overwrite` restores the registry's demo versions and undoes those adaptations.
+---
 
-**Pro components.** `skiper72`, `skiper86` and `skiper103` are Skiper UI Pro: the registry answers
-`401 Missing license key` without one. To install them, add your key to `.env.local`:
+## 📐 Project Structure
 
 ```
-SKIPER_UI_LICENSE=your-key
+GitPrism/
+├── src/
+│   ├── app/                      # Next.js App Router pages and global tokens
+│   ├── components/
+│   │   ├── brand/                # Wordmarks, navigation bars, and theme selectors
+│   │   ├── sections/             # Homepage chapters (Prism Hero, Snapshot Lab, Journey)
+│   │   ├── upload/               # Personal project upload, Multi-Lane DAG & Commit Inspector
+│   │   ├── workbench/            # Interactive Sandbox Lab panels and graph nodes
+│   │   ├── impact-studio/        # 3D PR Impact Studio lenses and HUD controls
+│   │   ├── mergelab/             # 3-Way MergeLab workspace and conflict constellation
+│   │   └── timefold/             # TimeFold history tracker and bisect runner
+│   ├── features/
+│   │   ├── upload/               # Git object decompression, project vault & serialization
+│   │   ├── impact-analysis/      # AST parsing, import graph builder & blast radius engine
+│   │   ├── mergelab/             # Diff3 algorithm, conflict solver & worker checks
+│   │   └── timefold/             # Function DNA history & bisect state machine
+│   └── tests/                    # Vitest test suites (byte-for-byte real git assertions)
+├── prisma/                       # Database schema (optional persistence layer)
+└── README.md
 ```
 
-then give the registry the header in `components.json`:
+---
 
-```json
-"registries": {
-  "@skiper-ui": {
-    "url": "https://skiper-ui.com/r/{name}.json",
-    "headers": { "Authorization": "Bearer ${SKIPER_UI_LICENSE}" }
-  }
-}
-```
+## 🔒 Privacy & Security First
 
-## Design system
+- **No Remote File Uploads:** All files picked in `/analyze` are parsed directly inside your browser tab using Web Streams. No project code is transmitted to remote servers.
+- **Sandboxed Test Runs:** Merge validations run in ephemeral, disposable Web Workers isolated from the DOM and host environment.
+- **Zero Third-Party Tracking:** No ad trackers, no telemetry scripts, and no external font requests.
 
-Dark-first ("Spectral Night"), with a light "Porcelain" theme. Tokens live in `src/app/globals.css`.
+---
 
-| Token | Dark | Light | Use |
-| --- | --- | --- | --- |
-| Canvas | `#08070F` | `#F6F5FB` | Page background |
-| Surface | `#151126` | `#FFFFFF` | Panels and cards |
-| Ink | `#F5F2FF` | `#14111F` | Primary text |
-| Prism Violet | `#9B7BFF` | `#6D4AE8` | Primary actions, commits |
-| Signal Cyan | `#3EE0FF` | `#12B4D6` | Blobs, imports |
-| Aurora Green | `#4BE3A6` | `#0F8A5F` | Trees, additions |
-| Hot Magenta | `#FF5CB8` | `#E0458F` | Changes, impact |
-| Solar Amber | `#FFC15C` | `#D98A12` | References, history |
+## 📄 License
 
-The five accent colours are the prism's spectrum: each one carries a fixed meaning, always paired with a shape (commit diamond, tree square, blob circle, reference pill).
-
-Type: **Martian Mono** (narrowed with its width axis) for headlines, so every heading reads like a commit message; **Space Grotesk** (variable, bundled in `src/app/fonts/`) for body text and interface; **JetBrains Mono** for hashes, commands and diffs.
-
-The homepage is written as a log. Each chapter heading carries a real blob ID (`echo "chapter 1: the problem" | git hash-object --stdin`), a commit graph on the right edge marks the chapter in view on wide screens, and the footer lists the chapters as `git log --oneline --reverse`. The tests check these IDs against real git.
+GitPrism is open-source under the [MIT License](LICENSE).

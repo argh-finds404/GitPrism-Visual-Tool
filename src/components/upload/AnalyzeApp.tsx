@@ -21,7 +21,7 @@ import { analyze } from "@/features/impact-analysis/analysis-service";
 import type { AnalysisResult } from "@/features/impact-analysis/types";
 import { collect, LIMITS, type Collected } from "@/features/upload/collect";
 import { readLocalGitRepo, type ParsedGitRepo } from "@/features/upload/git-reader";
-import { getFilesFromDataTransfer } from "@/features/upload/drag-drop";
+import { getFilesFromDataTransfer, pickDirectoryNative } from "@/features/upload/drag-drop";
 import { SaveProject } from "./SaveProject";
 import { CommitHistoryView } from "./CommitHistoryView";
 import { FindingBadge } from "@/components/impact-studio/hud/ui";
@@ -119,6 +119,17 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
     await processFiles(Array.from(list));
   };
 
+  const handleOpenPicker = async () => {
+    const native = await pickDirectoryNative();
+    if (native) {
+      if (!native.cancelled && native.files.length > 0) {
+        await processFiles(native.files);
+      }
+      return;
+    }
+    input.current?.click();
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -174,7 +185,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
           <StudioSwitch current="review" />
           <span className="mr-auto" />
           {state.status === "done" && (
-            <button type="button" onClick={() => input.current?.click()} className="btn btn-ghost btn-sm">
+            <button type="button" onClick={handleOpenPicker} className="btn btn-ghost btn-sm">
               <RefreshCw size={14} /> Pick another
             </button>
           )}
@@ -195,10 +206,10 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
 
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">
         {state.status === "idle" && (
-          <Idle onPick={() => input.current?.click()} isDragging={isDragging} />
+          <Idle onPick={handleOpenPicker} isDragging={isDragging} />
         )}
         {state.status === "reading" && <Reading />}
-        {state.status === "error" && <Failed message={state.message} onRetry={() => input.current?.click()} />}
+        {state.status === "error" && <Failed message={state.message} onRetry={handleOpenPicker} />}
         {state.status === "done" && (
           <Report
             picked={state.picked}

@@ -1,6 +1,18 @@
+const IGNORED_DIRS = new Set([
+  "node_modules",
+  ".next",
+  "dist",
+  "build",
+  "vendor",
+  ".venv",
+  "__pycache__",
+  "coverage",
+]);
+
 /**
  * Recursively extracts File objects from a browser drag-and-drop event,
  * preserving webkitRelativePath for both root files and subdirectories.
+ * Skips massive dependencies (node_modules, etc.) during traversal.
  */
 export async function getFilesFromDataTransfer(items: DataTransferItemList): Promise<File[]> {
   const files: File[] = [];
@@ -22,6 +34,9 @@ export async function getFilesFromDataTransfer(items: DataTransferItemList): Pro
       }
       files.push(file);
     } else if (entry.isDirectory) {
+      if (IGNORED_DIRS.has(entry.name)) {
+        return;
+      }
       const reader = entry.createReader();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const readBatch = async (): Promise<any[]> => {
@@ -53,4 +68,53 @@ export async function getFilesFromDataTransfer(items: DataTransferItemList): Pro
   }
 
   return files;
+}
+
+/**
+ * Uses the modern File System Access API (window.showDirectoryPicker) to open
+ * a native folder picker WITHOUT triggering Chrome's scary "Upload X files to this site?" popup.
+ * Also prunes node_modules / .venv during traversal for instantaneous loading.
+ */
+export async function pickDirectoryNative(): Promise<{ files: File[]; cancelled: boolean } | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (typeof window !== "undefined" && typeof (window as any).showDirectoryPicker === "function") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handle: any = await (window as any).showDirectoryPicker({ mode: "read" });
+      const files: File[] = [];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async function traverseDir(dirHandle: any, path: string) {
+        for await (const entry of dirHandle.values()) {
+          const entryPath = path ? `${path}/${entry.name}` : entry.name;
+          if (entry.kind === "file") {
+            const file = await entry.getFile();
+            try {
+              Object.defineProperty(file, "webkitRelativePath", {
+                value: entryPath,
+                writable: true,
+              });
+            } catch {
+              // ignore
+            }
+            files.push(file);
+          } else if (entry.kind === "directory") {
+            if (IGNORED_DIRS.has(entry.name)) {
+              continue;
+            }
+            await traverseDir(entry, entryPath);
+          }
+        }
+      }
+
+      await traverseDir(handle, handle.name);
+      return { files, cancelled: false };
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return { files: [], cancelled: true };
+      }
+      return null;
+    }
+  }
+  return null;
 }

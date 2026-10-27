@@ -1,8 +1,9 @@
 /**
  * In-browser parser for a local .git directory.
  *
- * Reads .git files provided by <input type="file" webkitdirectory> without uploading anything.
- * Combines loose commit objects, branch refs, and reflogs to reconstruct the real commit DAG.
+ * Reads .git files provided by <input type="file" webkitdirectory> or folder drag-and-drop.
+ * Unpacks loose commit and tree objects with native Web Streams DecompressionStream('deflate'),
+ * resolves branch pointers and reflogs, and builds the commit graph and snapshot trees.
  */
 
 export type GitAuthor = {
@@ -12,10 +13,18 @@ export type GitAuthor = {
   tz?: string;
 };
 
+export type GitTreeEntry = {
+  mode: string;
+  name: string;
+  oid: string;
+  isDir: boolean;
+};
+
 export type GitCommit = {
   oid: string;
   shortOid: string;
   tree?: string;
+  treeEntries?: GitTreeEntry[];
   parents: string[];
   author: GitAuthor;
   committer?: GitAuthor;
@@ -25,36 +34,50 @@ export type GitCommit = {
   isHead?: boolean;
 };
 
+export type GitContributor = {
+  name: string;
+  email: string;
+  commitCount: number;
+};
+
 export type ParsedGitRepo = {
   name: string;
   headBranch: string;
   headOid: string;
   branches: Record<string, string>; // branch name -> commit SHA
   commits: GitCommit[];
+  commitsByOid: Map<string, GitCommit>;
+  contributors: GitContributor[];
   totalCommits: number;
+  treesByOid: Map<string, GitTreeEntry[]>;
+  timeSpan?: {
+    first: number;
+    latest: number;
+  };
 };
 
-/** Decompresses a zlib-deflated Uint8Array loose object using the native Web Streams API */
-async function inflate(buffer: ArrayBuffer): Promise<string> {
+/** Decompresses a zlib-deflated loose Git object using the browser's native Web Streams API */
+async function inflate(buffer: ArrayBuffer): Promise<Uint8Array | null> {
   try {
     const stream = new Response(buffer).body?.pipeThrough(new DecompressionStream("deflate"));
-    if (!stream) return "";
+    if (!stream) return null;
     const decompressed = await new Response(stream).arrayBuffer();
-    return new TextDecoder().decode(decompressed);
+    return new Uint8Array(decompressed);
   } catch {
-    return "";
+    return null;
   }
 }
 
-function parseCommitContent(content: string): {
+function parseCommitContent(bytes: Uint8Array): {
   tree: string;
   parents: string[];
   author?: GitAuthor;
   committer?: GitAuthor;
   message: string;
 } {
-  const nullIdx = content.indexOf("\0");
-  const body = nullIdx >= 0 ? content.slice(nullIdx + 1) : content;
+  const text = new TextDecoder().decode(bytes);
+  const nullIdx = text.indexOf("\0");
+  const body = nullIdx >= 0 ? text.slice(nullIdx + 1) : text;
   const lines = body.split("\n");
   let tree = "";
   const parents: string[] = [];
@@ -99,6 +122,67 @@ function parseCommitContent(content: string): {
   return { tree, parents, author, committer, message };
 }
 
+function parseTreeContent(bytes: Uint8Array): GitTreeEntry[] {
+  let nullIdx = -1;
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 0) {
+      nullIdx = i;
+      break;
+    }
+  }
+  if (nullIdx === -1) return [];
+
+  const body = bytes.subarray(nullIdx + 1);
+  const entries: GitTreeEntry[] = [];
+  let pos = 0;
+  const decoder = new TextDecoder();
+
+  while (pos < body.length) {
+    let spaceIdx = -1;
+    for (let i = pos; i < body.length; i++) {
+      if (body[i] === 32) {
+        spaceIdx = i;
+        break;
+      }
+    }
+    if (spaceIdx === -1) break;
+
+    const mode = decoder.decode(body.subarray(pos, spaceIdx));
+    let nameNullIdx = -1;
+    for (let i = spaceIdx + 1; i < body.length; i++) {
+      if (body[i] === 0) {
+        nameNullIdx = i;
+        break;
+      }
+    }
+    if (nameNullIdx === -1) break;
+
+    const name = decoder.decode(body.subarray(spaceIdx + 1, nameNullIdx));
+    const oidBuf = body.subarray(nameNullIdx + 1, nameNullIdx + 21);
+    if (oidBuf.length < 20) break;
+
+    let hexOid = "";
+    for (let i = 0; i < oidBuf.length; i++) {
+      hexOid += oidBuf[i].toString(16).padStart(2, "0");
+    }
+
+    entries.push({
+      mode,
+      name,
+      oid: hexOid,
+      isDir: mode.startsWith("40"),
+    });
+
+    pos = nameNullIdx + 21;
+  }
+
+  return entries.sort((a, b) => {
+    if (a.isDir && !b.isDir) return -1;
+    if (!a.isDir && b.isDir) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGitRepo | null> {
   const fileArray = Array.from(files);
   const gitFiles = new Map<string, File>();
@@ -107,7 +191,7 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     const rawPath = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
     const gitIdx = rawPath.indexOf(".git/");
     if (gitIdx !== -1) {
-      const internalPath = rawPath.slice(gitIdx + 5); // path relative to .git/
+      const internalPath = rawPath.slice(gitIdx + 5);
       gitFiles.set(internalPath, f);
     }
   }
@@ -116,7 +200,7 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     return null;
   }
 
-  // 1. Read HEAD to determine active branch or commit
+  // 1. Read HEAD
   let headBranch = "main";
   let headOid = "";
   const headFile = gitFiles.get("HEAD");
@@ -164,20 +248,24 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     headOid = branches[headBranch];
   }
 
-  // 4. Discover and parse loose commit objects
+  // 4. Discover and parse loose commit & tree objects
   const commitsByOid = new Map<string, GitCommit>();
+  const treesByOid = new Map<string, GitTreeEntry[]>();
 
   for (const [path, file] of gitFiles.entries()) {
     if (path.startsWith("objects/")) {
       const rest = path.slice(8);
-      // loose objects have 2-char dir + 38-char filename
       const match = rest.match(/^([0-9a-f]{2})\/([0-9a-f]{38})$/i);
       if (match) {
         const oid = (match[1] + match[2]).toLowerCase();
         try {
           const buf = await file.arrayBuffer();
           const decompressed = await inflate(buf);
-          if (decompressed.startsWith("commit ")) {
+          if (!decompressed) continue;
+
+          // Check prefix
+          const headerPrefix = new TextDecoder().decode(decompressed.subarray(0, 16));
+          if (headerPrefix.startsWith("commit ")) {
             const parsed = parseCommitContent(decompressed);
             if (parsed.author) {
               const summary = parsed.message.split("\n")[0] || "No message";
@@ -193,9 +281,12 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
                 branches: [],
               });
             }
+          } else if (headerPrefix.startsWith("tree ")) {
+            const entries = parseTreeContent(decompressed);
+            treesByOid.set(oid, entries);
           }
         } catch {
-          // ignore unparseable or non-commit objects
+          // ignore unparseable objects
         }
       }
     }
@@ -241,13 +332,11 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     }
   }
 
-  // 6. Label commits with branch pointers
+  // 6. Label commits with branch pointers and attach tree entries
   for (const [bName, bOid] of Object.entries(branches)) {
     const commit = commitsByOid.get(bOid);
-    if (commit) {
-      if (!commit.branches.includes(bName)) {
-        commit.branches.push(bName);
-      }
+    if (commit && !commit.branches.includes(bName)) {
+      commit.branches.push(bName);
     }
   }
 
@@ -258,14 +347,45 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     }
   }
 
+  for (const commit of commitsByOid.values()) {
+    if (commit.tree && treesByOid.has(commit.tree)) {
+      commit.treeEntries = treesByOid.get(commit.tree);
+    }
+  }
+
   // 7. Sort commits chronologically (newest first)
   const commitList = Array.from(commitsByOid.values()).sort(
     (a, b) => b.author.timestamp - a.author.timestamp
   );
 
+  // 8. Compute contributor statistics
+  const contributorMap = new Map<string, GitContributor>();
+  for (const c of commitList) {
+    const key = `${c.author.name} <${c.author.email}>`;
+    const existing = contributorMap.get(key);
+    if (existing) {
+      existing.commitCount += 1;
+    } else {
+      contributorMap.set(key, {
+        name: c.author.name,
+        email: c.author.email,
+        commitCount: 1,
+      });
+    }
+  }
+  const contributors = Array.from(contributorMap.values()).sort((a, b) => b.commitCount - a.commitCount);
+
   const projectName = fileArray[0]
     ? (fileArray[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/")[0] || "project"
     : "project";
+
+  const timeSpan =
+    commitList.length > 0
+      ? {
+          first: commitList[commitList.length - 1].author.timestamp,
+          latest: commitList[0].author.timestamp,
+        }
+      : undefined;
 
   return {
     name: projectName,
@@ -273,6 +393,10 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     headOid,
     branches,
     commits: commitList,
+    commitsByOid,
+    contributors,
     totalCommits: commitList.length,
+    treesByOid,
+    timeSpan,
   };
 }

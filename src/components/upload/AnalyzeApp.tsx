@@ -15,11 +15,13 @@ import {
   RefreshCw,
   Repeat,
   ShieldCheck,
+  UploadCloud,
 } from "lucide-react";
 import { analyze } from "@/features/impact-analysis/analysis-service";
 import type { AnalysisResult } from "@/features/impact-analysis/types";
 import { collect, LIMITS, type Collected } from "@/features/upload/collect";
 import { readLocalGitRepo, type ParsedGitRepo } from "@/features/upload/git-reader";
+import { getFilesFromDataTransfer } from "@/features/upload/drag-drop";
 import { SaveProject } from "./SaveProject";
 import { CommitHistoryView } from "./CommitHistoryView";
 import { FindingBadge } from "@/components/impact-studio/hud/ui";
@@ -54,6 +56,7 @@ function relativeRoot(file: File) {
 
 export function AnalyzeApp({ initial }: { initial?: { name: string; files: Record<string, string> } }) {
   const input = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [state, setState] = useState<State>(() => {
     if (!initial) return { status: "idle" };
     const picked: Collected = {
@@ -71,13 +74,13 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
     };
   });
 
-  const onPick = async (list: FileList | null) => {
-    if (!list || list.length === 0) return;
+  const processFiles = async (files: File[]) => {
+    if (files.length === 0) return;
     setState({ status: "reading" });
     try {
       const [picked, gitRepo] = await Promise.all([
-        collect(list),
-        readLocalGitRepo(list).catch(() => null),
+        collect(files),
+        readLocalGitRepo(files).catch(() => null),
       ]);
 
       const sourceCount = Object.keys(picked.files).length;
@@ -92,7 +95,6 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         return;
       }
 
-      // Structure analysis runs on whatever source was found
       const result = analyze(picked.files, picked.files, {
         base: "upload",
         head: "upload",
@@ -104,7 +106,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         status: "done",
         picked,
         result,
-        name: list[0] ? relativeRoot(list[0]) : "project",
+        name: files[0] ? relativeRoot(files[0]) : "project",
         gitRepo,
       });
     } catch (e) {
@@ -112,8 +114,48 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
     }
   };
 
+  const onPick = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    await processFiles(Array.from(list));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      const files = await getFilesFromDataTransfer(e.dataTransfer.items);
+      if (files.length > 0) {
+        await processFiles(files);
+        return;
+      }
+    }
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
   return (
-    <main className="studio min-h-[100dvh]">
+    <main
+      className="studio min-h-[100dvh]"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <header className="border-b border-[var(--line)] px-4 py-3 md:px-6">
         <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-2">
           <Link href="/" aria-label="GitPrism home">
@@ -152,7 +194,9 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
       />
 
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">
-        {state.status === "idle" && <Idle onPick={() => input.current?.click()} />}
+        {state.status === "idle" && (
+          <Idle onPick={() => input.current?.click()} isDragging={isDragging} />
+        )}
         {state.status === "reading" && <Reading />}
         {state.status === "error" && <Failed message={state.message} onRetry={() => input.current?.click()} />}
         {state.status === "done" && (
@@ -168,20 +212,36 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
   );
 }
 
-function Idle({ onPick }: { onPick: () => void }) {
+function Idle({ onPick, isDragging }: { onPick: () => void; isDragging: boolean }) {
   return (
-    <div className="hud mx-auto max-w-2xl p-8 text-center">
-      <FolderOpen size={28} className="mx-auto text-[var(--violet)]" />
-      <h2 className="mt-4 text-xl font-semibold text-[var(--ink)]">Pick your repository folder</h2>
+    <div
+      className={`hud relative mx-auto max-w-2xl p-8 text-center transition-all duration-300 ${
+        isDragging
+          ? "border-[var(--violet)] bg-[var(--violet-wash)]/40 shadow-2xl shadow-[var(--violet)]/20 scale-[1.01]"
+          : ""
+      }`}
+    >
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[var(--violet)]/12 text-[var(--violet)]">
+        {isDragging ? <UploadCloud size={30} className="animate-bounce" /> : <FolderOpen size={28} />}
+      </div>
+
+      <h2 className="mt-4 text-xl font-semibold text-[var(--ink)]">
+        {isDragging ? "Drop your repository folder here" : "Pick or drop your repository folder"}
+      </h2>
       <p className="mx-auto mt-3 max-w-prose text-[13.5px] leading-relaxed text-[var(--ink-2)]">
-        Select a local project folder. GitPrism reads your files in the browser, extracts your real{" "}
-        <strong className="text-[var(--violet-ink)] font-medium">Git commit history</strong>, maps branches, and
-        analyzes dependencies and architecture cycles.
+        Select or drag a local project folder into this window. GitPrism reads your files in the browser,
+        extracts your real <strong className="text-[var(--violet-ink)] font-medium">Git commit history</strong>, maps
+        branches, and analyzes dependencies and architecture cycles.
       </p>
-      <button type="button" onClick={onPick} className="btn btn-primary btn-md mx-auto mt-6">
-        <FolderOpen size={16} /> Choose project folder
-      </button>
-      <div className="mt-8 space-y-2 text-left">
+
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button type="button" onClick={onPick} className="btn btn-primary btn-md">
+          <FolderOpen size={16} /> Choose project folder
+        </button>
+        <span className="font-mono text-[12px] text-[var(--ink-3)]">or drag and drop here</span>
+      </div>
+
+      <div className="mt-8 space-y-2 text-left border-t border-[var(--line)] pt-6">
         <p className="flex items-start gap-2.5 text-[12.5px] text-[var(--ink-2)]">
           <GitCommitHorizontal size={15} className="mt-0.5 shrink-0 text-[var(--violet)]" />
           <span>

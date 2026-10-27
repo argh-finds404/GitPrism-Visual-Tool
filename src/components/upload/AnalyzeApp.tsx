@@ -15,6 +15,7 @@ import {
   Loader2,
   Lock,
   Repeat,
+  Share2,
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import {
   type StoredProjectSummary,
 } from "@/features/upload/project-vault";
 import { SaveProject } from "./SaveProject";
+import { ShareModal } from "./ShareModal";
 import { CommitHistoryView } from "./CommitHistoryView";
 import { UserIdentityBar } from "./UserIdentityBar";
 import { ImportModal } from "./ImportModal";
@@ -75,6 +77,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
   const input = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [vaultProjects, setVaultProjects] = useState<StoredProjectSummary[]>([]);
   const { user, updateProfile } = useUserAuth();
@@ -225,6 +228,25 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
       downloadProjectBundle(project);
     }
   };
+
+  const exportCurrentProjectBundle = useCallback(() => {
+    if (state.status !== "done") return;
+    if (currentProjectId) {
+      handleExportBundle(currentProjectId);
+    } else {
+      downloadProjectBundle({
+        id: "session",
+        userId: user.id,
+        name: state.name ?? "project",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        fileCount: Object.keys(state.result.headFiles).length,
+        totalBytes: state.picked.bytes,
+        files: state.result.headFiles,
+        gitRepo: serializeGitRepo(state.gitRepo),
+      });
+    }
+  }, [state, currentProjectId, user.id]);
 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -379,31 +401,26 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
           <span className="mr-auto" />
           <div className="flex items-center gap-2">
             {state.status === "done" && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentProjectId) {
-                    handleExportBundle(currentProjectId);
-                  } else {
-                    downloadProjectBundle({
-                      id: "session",
-                      userId: user.id,
-                      name: state.name ?? "project",
-                      createdAt: Date.now(),
-                      updatedAt: Date.now(),
-                      fileCount: Object.keys(state.result.headFiles).length,
-                      totalBytes: state.picked.bytes,
-                      files: state.result.headFiles,
-                      gitRepo: serializeGitRepo(state.gitRepo),
-                    });
-                  }
-                }}
-                className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
-                title="Export current workspace as portable .gitprism.json bundle"
-              >
-                <FileDown size={14} className="text-[var(--cyan)]" />
-                <span className="hidden sm:inline">Export Bundle</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--violet)]/40 bg-[var(--violet)]/10 text-[12px] text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
+                  title="Share project via cloud link or export offline bundle"
+                >
+                  <Share2 size={13} className="text-[var(--violet)]" />
+                  <span>Share</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={exportCurrentProjectBundle}
+                  className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+                  title="Export current workspace as portable .gitprism.json bundle"
+                >
+                  <FileDown size={14} className="text-[var(--cyan)]" />
+                  <span className="hidden sm:inline">Export Bundle</span>
+                </button>
+              </>
             )}
 
             <button
@@ -450,6 +467,18 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         onExportBundle={handleExportBundle}
       />
 
+      {state.status === "done" && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          projectName={state.name ?? "project"}
+          files={state.result.headFiles}
+          fileCount={Object.keys(state.result.headFiles).length}
+          totalBytes={state.picked.bytes}
+          onExportBundle={exportCurrentProjectBundle}
+        />
+      )}
+
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">
         {state.status === "idle" && (
           <Idle
@@ -467,6 +496,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
             result={state.result}
             name={state.name ?? "project"}
             gitRepo={state.gitRepo}
+            onOpenShare={() => setIsShareModalOpen(true)}
           />
         )}
       </div>
@@ -689,11 +719,13 @@ function Report({
   result,
   name,
   gitRepo,
+  onOpenShare,
 }: {
   picked: Collected;
   result: AnalysisResult;
   name: string;
   gitRepo?: ParsedGitRepo | null;
+  onOpenShare: () => void;
 }) {
   const hasCommits = !!gitRepo && gitRepo.commits.length > 0;
   const [activeTab, setActiveTab] = useState<"commits" | "architecture">(() =>
@@ -768,6 +800,15 @@ function Report({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={onOpenShare}
+              className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--violet)]/40 bg-[var(--violet)]/10 text-[12px] text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
+              title="Share project via cloud link or export offline bundle"
+            >
+              <Share2 size={13} className="text-[var(--violet)]" />
+              <span>Share Project</span>
+            </button>
+            <button
+              type="button"
               onClick={() => downloadArchitectureDossier(name, result, gitRepo, hubs)}
               className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
               title="Download Markdown summary of architecture, choke-points, and Git stats"
@@ -785,15 +826,26 @@ function Report({
           <h3 className="font-semibold text-[var(--ink)] text-[15px]">
             {name} Architecture & Topology
           </h3>
-          <button
-            type="button"
-            onClick={() => downloadArchitectureDossier(name, result, gitRepo, hubs)}
-            className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
-            title="Download Markdown summary of architecture and choke-points"
-          >
-            <FileDown size={14} className="text-[var(--violet)]" />
-            <span>Export Dossier (.md)</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenShare}
+              className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--violet)]/40 bg-[var(--violet)]/10 text-[12px] text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
+              title="Share project via cloud link or export offline bundle"
+            >
+              <Share2 size={13} className="text-[var(--violet)]" />
+              <span>Share Project</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadArchitectureDossier(name, result, gitRepo, hubs)}
+              className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+              title="Download Markdown summary of architecture and choke-points"
+            >
+              <FileDown size={14} className="text-[var(--violet)]" />
+              <span>Export Dossier (.md)</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -887,7 +939,9 @@ function Report({
             </section>
           </div>
 
-          {Object.keys(result.headFiles).length > 0 && <SaveProject name={name} files={result.headFiles} />}
+          {Object.keys(result.headFiles).length > 0 && (
+            <SaveProject name={name} files={result.headFiles} onOpenShareModal={onOpenShare} />
+          )}
 
           <div className="hud p-4">
             <h2 className="text-[11px] font-semibold text-[var(--ink-3)]">What this does not tell you</h2>

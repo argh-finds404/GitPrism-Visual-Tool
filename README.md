@@ -120,6 +120,10 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 
 ### 3. Personal Repository Studio (`/analyze`)
 - **Drag-and-Drop Ingestion:** Drop any project folder containing a `.git` directory directly into the browser.
+- **Hybrid Local-First Architecture:**
+  - **100% Private Offline Vault:** Source files and Git commits are safely persisted inside your device's browser IndexedDB (`idb-keyval`). Zero source code ever touches a remote server without explicit consent.
+  - **Portable Workspace Bundles:** 1-click export of your complete workspace into a lightweight `.gitprism.json` bundle containing your code AST and Git commit DAG for zero-cloud teammate collaboration.
+  - **Opt-in Cloud Sharing:** Optional 7-day temporary share links (powered by PostgreSQL & Prisma at `/api/projects`) that auto-prune upon expiry for frictionless remote reviews.
 - **Multi-Lane SVG Git DAG:** Automatically renders concurrent branches and merge joins on color-coded tracks (`#8B5CF6`, `#06B6D4`, `#F59E0B`, `#EC4899`, `#10B981`) with smooth cubic bezier curves and pulsating HEAD markers.
 - **5-Tab Commit Inspector:**
   - **Overview:** SHA-1 hash, root tree ID, author details, timestamp, and clickable parent commit navigation.
@@ -155,7 +159,7 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 | **Styling** | Tailwind CSS + Obsidian Dark CSS Variables | Curated dark-first design system (`--paper`, `--surface`, `--ink`, `--violet`, `--cyan`, `--amber`) |
 | **Git Engine** | Custom Web Streams decompression (`git-reader.ts`) | Decompresses zlib loose objects in-browser with zero native binaries |
 | **Execution** | Web Workers & `node:vm` isolated runners | Safe, client-side test execution and merge validation |
-| **Local Storage**| IndexedDB (`idb-keyval`) | Local-first persistence for project vaults and lab states |
+| **Local & Hybrid Storage**| IndexedDB (`idb-keyval`) + Prisma/PostgreSQL + `.gitprism.json` bundles | Hybrid local-first storage with zero-leak privacy & opt-in 7-day cloud sharing |
 | **Testing** | Vitest | 192 unit and integration tests validating Git hash parity and AST analysis |
 
 ---

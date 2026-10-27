@@ -14,7 +14,15 @@ type State =
   | { status: "saved"; url: string; keepDays: number }
   | { status: "error"; message: string };
 
-export function SaveProject({ name, files }: { name: string; files: Record<string, string> }) {
+export function SaveProject({
+  name,
+  files,
+  onOpenShareModal,
+}: {
+  name: string;
+  files: Record<string, string>;
+  onOpenShareModal?: () => void;
+}) {
   const [state, setState] = useState<State>({ status: "idle" });
   const [copied, setCopied] = useState(false);
 
@@ -73,9 +81,14 @@ export function SaveProject({ name, files }: { name: string; files: Record<strin
           {state.message}
         </p>
       )}
-      <button type="button" onClick={save} disabled={state.status === "saving"} className="btn btn-ghost btn-sm shrink-0">
+      <button
+        type="button"
+        onClick={onOpenShareModal ?? save}
+        disabled={state.status === "saving"}
+        className="btn btn-ghost btn-sm shrink-0 border border-[var(--violet)]/30 bg-[var(--violet)]/10 text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
+      >
         {state.status === "saving" ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
-        {state.status === "saving" ? "Saving" : state.status === "error" ? "Try again" : "Save and get a link"}
+        {state.status === "saving" ? "Saving" : "Share or Save Project"}
       </button>
     </div>
   );

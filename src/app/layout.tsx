@@ -20,6 +20,14 @@ export const metadata: Metadata = {
   description:
     "Explore the objects, snapshots and connections that make Git work. An interactive, visual way to understand blobs, trees, commits and history.",
   metadataBase: new URL("https://gitprism.dev"),
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
   openGraph: {
     title: "GitPrism",
     description: "Stop memorizing Git. Start seeing it.",

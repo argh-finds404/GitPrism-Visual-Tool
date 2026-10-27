@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -8,11 +8,11 @@ import {
   FolderOpen,
   GitBranch,
   GitCommitHorizontal,
+  HardDrive,
   Layers,
   Link2Off,
   Loader2,
   Lock,
-  RefreshCw,
   Repeat,
   ShieldCheck,
   UploadCloud,
@@ -22,8 +22,22 @@ import type { AnalysisResult } from "@/features/impact-analysis/types";
 import { collect, LIMITS, type Collected } from "@/features/upload/collect";
 import { readLocalGitRepo, type ParsedGitRepo } from "@/features/upload/git-reader";
 import { getFilesFromDataTransfer, pickDirectoryNative } from "@/features/upload/drag-drop";
+import { useUserAuth } from "@/features/auth/user-auth";
+import {
+  deleteProjectFromVault,
+  getLastActiveProjectId,
+  getProjectFromVault,
+  listProjectsInVault,
+  rehydrateGitRepo,
+  saveProjectToVault,
+  serializeGitRepo,
+  setLastActiveProjectId,
+  type StoredProjectSummary,
+} from "@/features/upload/project-vault";
 import { SaveProject } from "./SaveProject";
 import { CommitHistoryView } from "./CommitHistoryView";
+import { UserIdentityBar } from "./UserIdentityBar";
+import { ImportModal } from "./ImportModal";
 import { FindingBadge } from "@/components/impact-studio/hud/ui";
 import { PrismMark } from "@/components/brand/PrismMark";
 import { StudioSwitch } from "@/components/site/StudioSwitch";
@@ -57,6 +71,11 @@ function relativeRoot(file: File) {
 export function AnalyzeApp({ initial }: { initial?: { name: string; files: Record<string, string> } }) {
   const input = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [vaultProjects, setVaultProjects] = useState<StoredProjectSummary[]>([]);
+  const { user, updateProfile } = useUserAuth();
+
   const [state, setState] = useState<State>(() => {
     if (!initial) return { status: "idle" };
     const picked: Collected = {
@@ -73,6 +92,107 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
       gitRepo: null,
     };
   });
+
+  const refreshVault = useCallback(async () => {
+    const list = await listProjectsInVault(user.id);
+    setVaultProjects(list);
+    return list;
+  }, [user.id]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const list = await listProjectsInVault(user.id);
+      if (alive) {
+        setVaultProjects(list);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user.id]);
+
+  // Auto-restore previously active project on mount
+  useEffect(() => {
+    if (initial) return;
+    let alive = true;
+    (async () => {
+      const lastId = getLastActiveProjectId();
+      if (!lastId) return;
+      const project = await getProjectFromVault(lastId);
+      if (!alive || !project) return;
+
+      const gitRepo = rehydrateGitRepo(project.gitRepo);
+      const picked: Collected = {
+        files: project.files,
+        skipped: { ignored: 0, notSource: 0, secret: 0, tooBig: 0 },
+        truncated: false,
+        bytes: project.totalBytes,
+      };
+      const result = analyze(project.files, project.files, {
+        base: "upload",
+        head: "upload",
+        layers: [],
+        rules: [],
+      });
+
+      setState({
+        status: "done",
+        picked,
+        result,
+        name: project.name,
+        gitRepo,
+      });
+      setCurrentProjectId(project.id);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [initial]);
+
+  const handleSelectVaultProject = async (id: string) => {
+    setState({ status: "reading" });
+    const project = await getProjectFromVault(id);
+    if (!project) {
+      setState({ status: "error", message: "That project could not be found in your local vault." });
+      return;
+    }
+
+    const gitRepo = rehydrateGitRepo(project.gitRepo);
+    const picked: Collected = {
+      files: project.files,
+      skipped: { ignored: 0, notSource: 0, secret: 0, tooBig: 0 },
+      truncated: false,
+      bytes: project.totalBytes,
+    };
+    const result = analyze(project.files, project.files, {
+      base: "upload",
+      head: "upload",
+      layers: [],
+      rules: [],
+    });
+
+    setState({
+      status: "done",
+      picked,
+      result,
+      name: project.name,
+      gitRepo,
+    });
+    setCurrentProjectId(project.id);
+    setLastActiveProjectId(project.id);
+    await refreshVault();
+  };
+
+  const handleDeleteVaultProject = async (id: string) => {
+    await deleteProjectFromVault(id);
+    if (currentProjectId === id) {
+      setState({ status: "idle" });
+      setCurrentProjectId(null);
+    }
+    await refreshVault();
+  };
 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -102,13 +222,37 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         rules: [],
       });
 
+      const projectName = files[0] ? relativeRoot(files[0]) : "project";
+      const projectId = `proj_${Date.now()}_${projectName.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
+      await saveProjectToVault({
+        id: projectId,
+        userId: user.id,
+        name: projectName,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        fileCount: Object.keys(picked.files).length,
+        totalBytes: picked.bytes,
+        files: picked.files,
+        gitRepo: serializeGitRepo(gitRepo),
+      });
+
+      if (gitRepo?.contributors?.[0]?.name && user.name === "Developer") {
+        updateProfile({
+          name: gitRepo.contributors[0].name,
+          email: gitRepo.contributors[0].email,
+        });
+      }
+
       setState({
         status: "done",
         picked,
         result,
-        name: files[0] ? relativeRoot(files[0]) : "project",
+        name: projectName,
         gitRepo,
       });
+      setCurrentProjectId(projectId);
+      await refreshVault();
     } catch (e) {
       setState({ status: "error", message: (e as Error).message || "That folder could not be read." });
     }
@@ -184,11 +328,25 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
           </div>
           <StudioSwitch current="review" />
           <span className="mr-auto" />
-          {state.status === "done" && (
-            <button type="button" onClick={handleOpenPicker} className="btn btn-ghost btn-sm">
-              <RefreshCw size={14} /> Pick another
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="btn btn-ghost btn-sm flex items-center gap-1.5"
+            >
+              <FolderOpen size={14} />
+              <span>{state.status === "done" ? "Switch project" : "Import project"}</span>
             </button>
-          )}
+            <UserIdentityBar
+              user={user}
+              projects={vaultProjects}
+              currentProjectId={currentProjectId}
+              onSelectProject={handleSelectVaultProject}
+              onDeleteProject={handleDeleteVaultProject}
+              onNewProject={() => setIsModalOpen(true)}
+              onUpdateUser={updateProfile}
+            />
+          </div>
         </div>
       </header>
 
@@ -204,12 +362,26 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         onChange={(e) => onPick(e.target.files)}
       />
 
+      <ImportModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onPickFolder={handleOpenPicker}
+        projects={vaultProjects}
+        onSelectProject={handleSelectVaultProject}
+        onDeleteProject={handleDeleteVaultProject}
+      />
+
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">
         {state.status === "idle" && (
-          <Idle onPick={handleOpenPicker} isDragging={isDragging} />
+          <Idle
+            onPick={handleOpenPicker}
+            onOpenModal={() => setIsModalOpen(true)}
+            isDragging={isDragging}
+            savedProjectsCount={vaultProjects.length}
+          />
         )}
         {state.status === "reading" && <Reading />}
-        {state.status === "error" && <Failed message={state.message} onRetry={handleOpenPicker} />}
+        {state.status === "error" && <Failed message={state.message} onRetry={() => setIsModalOpen(true)} />}
         {state.status === "done" && (
           <Report
             picked={state.picked}
@@ -223,7 +395,17 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
   );
 }
 
-function Idle({ onPick, isDragging }: { onPick: () => void; isDragging: boolean }) {
+function Idle({
+  onPick,
+  onOpenModal,
+  isDragging,
+  savedProjectsCount,
+}: {
+  onPick: () => void;
+  onOpenModal: () => void;
+  isDragging: boolean;
+  savedProjectsCount: number;
+}) {
   return (
     <div
       className={`hud relative mx-auto max-w-2xl p-8 text-center transition-all duration-300 ${
@@ -246,10 +428,28 @@ function Idle({ onPick, isDragging }: { onPick: () => void; isDragging: boolean 
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <button type="button" onClick={onPick} className="btn btn-primary btn-md">
+        <button type="button" onClick={onOpenModal} className="btn btn-primary btn-md">
           <FolderOpen size={16} /> Choose project folder
         </button>
-        <span className="font-mono text-[12px] text-[var(--ink-3)]">or drag and drop here</span>
+        {savedProjectsCount > 0 && (
+          <button
+            type="button"
+            onClick={onOpenModal}
+            className="btn btn-ghost btn-md border border-[var(--violet)]/30 bg-[var(--violet)]/10 text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
+          >
+            <HardDrive size={15} /> Resume saved project ({savedProjectsCount})
+          </button>
+        )}
+        <span className="font-mono text-[12px] text-[var(--ink-3)]">
+          or drag and drop, or{" "}
+          <button
+            type="button"
+            onClick={onPick}
+            className="underline hover:text-[var(--ink)]"
+          >
+            browse directly
+          </button>
+        </span>
       </div>
 
       <div className="mt-8 space-y-2 text-left border-t border-[var(--line)] pt-6">

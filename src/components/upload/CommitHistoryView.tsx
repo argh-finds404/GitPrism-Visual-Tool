@@ -96,7 +96,7 @@ export function CommitHistoryView({
       {/* 1. Repository KPI Dashboard */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Active Branch */}
-        <div className="hud relative overflow-hidden p-4">
+        <div className="hud relative overflow-hidden rounded-2xl p-4">
           <span
             aria-hidden="true"
             className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[var(--violet)]/10 blur-xl"
@@ -114,7 +114,7 @@ export function CommitHistoryView({
         </div>
 
         {/* Card 2: Total Commits */}
-        <div className="hud relative overflow-hidden p-4">
+        <div className="hud relative overflow-hidden rounded-2xl p-4">
           <span
             aria-hidden="true"
             className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[var(--cyan)]/10 blur-xl"
@@ -132,7 +132,7 @@ export function CommitHistoryView({
         </div>
 
         {/* Card 3: Contributors */}
-        <div className="hud relative overflow-hidden p-4">
+        <div className="hud relative overflow-hidden rounded-2xl p-4">
           <span
             aria-hidden="true"
             className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[var(--magenta)]/10 blur-xl"
@@ -150,7 +150,7 @@ export function CommitHistoryView({
         </div>
 
         {/* Card 4: Timeline Span */}
-        <div className="hud relative overflow-hidden p-4">
+        <div className="hud relative overflow-hidden rounded-2xl p-4">
           <span
             aria-hidden="true"
             className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[var(--amber)]/10 blur-xl"
@@ -169,7 +169,7 @@ export function CommitHistoryView({
       </div>
 
       {/* 2. Filter & Search Controls */}
-      <div className="hud flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="hud flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-1.5 rounded-xl border border-[var(--line)] bg-surface px-3 py-1.5">
             <GitBranch size={13} className="text-[var(--violet)]" />
@@ -211,7 +211,7 @@ export function CommitHistoryView({
       {/* 3. Main Split View: Commit Timeline on Left, Rich Inspector on Right */}
       <div className="grid gap-5 lg:grid-cols-12">
         {/* Left: Commit Timeline */}
-        <div className="hud overflow-hidden p-0 lg:col-span-7 xl:col-span-7">
+        <div className="hud flex min-h-[480px] flex-col overflow-hidden rounded-2xl p-0 lg:col-span-7 xl:col-span-7">
           <div className="flex items-center justify-between border-b border-[var(--line-2)] px-4 py-3">
             <h3 className="flex items-center gap-2 text-[13.5px] font-semibold text-[var(--ink)]">
               <GitCommitHorizontal size={16} className="text-[var(--violet)]" />
@@ -222,24 +222,24 @@ export function CommitHistoryView({
             </span>
           </div>
 
-          <div className="max-h-[680px] divide-y divide-[var(--line)] overflow-y-auto">
+          <div className="max-h-[680px] flex-1 divide-y divide-[var(--line)] overflow-y-auto p-1.5">
             {filteredCommits.length === 0 ? (
-              <div className="py-16 text-center">
-                <GitCommitHorizontal size={28} className="mx-auto text-[var(--ink-3)] opacity-40" />
+              <div className="py-24 text-center">
+                <GitCommitHorizontal size={32} className="mx-auto text-[var(--ink-3)] opacity-40" />
                 <p className="mt-3 text-[13px] text-[var(--ink-3)]">No commits match your filter.</p>
               </div>
             ) : (
-              <ol className="relative m-0 list-none p-0">
+              <ol className="relative m-0 list-none space-y-1 p-0">
                 {filteredCommits.map((c, i) => {
                   const isSelected = c.oid === selectedCommit?.oid;
                   return (
                     <li
                       key={c.oid}
                       onClick={() => setSelectedOid(c.oid)}
-                      className={`group relative flex cursor-pointer items-start gap-3.5 px-4 py-3.5 transition-all ${
+                      className={`group relative flex cursor-pointer items-start gap-3.5 rounded-xl px-4 py-3.5 transition-all ${
                         isSelected
-                          ? "bg-[var(--violet-wash)]/60 text-[var(--ink)] ring-1 ring-inset ring-[var(--violet)]/30"
-                          : "hover:bg-white/[0.03]"
+                          ? "bg-[var(--violet-wash)]/70 text-[var(--ink)] ring-1 ring-inset ring-[var(--violet)]/40 shadow-sm"
+                          : "hover:bg-white/[0.04]"
                       }`}
                     >
                       {/* Visual DAG Rail */}
@@ -308,7 +308,7 @@ export function CommitHistoryView({
         </div>
 
         {/* Right: 3-Tab Selected Commit Inspector */}
-        <div className="hud flex flex-col justify-between p-5 lg:col-span-5 xl:col-span-5">
+        <div className="hud flex min-h-[480px] flex-col justify-between rounded-2xl p-5 lg:col-span-5 xl:col-span-5">
           {selectedCommit ? (
             <div className="space-y-4">
               {/* Header */}

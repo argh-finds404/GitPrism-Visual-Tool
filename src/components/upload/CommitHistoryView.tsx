@@ -635,6 +635,67 @@ export function CommitHistoryView({
     };
   }, [architectureResult, selectedCommit]);
 
+  // Overall Architectural Health Score calculation
+  const architecturalHealth = useMemo(() => {
+    if (!architectureResult) return null;
+    const cyclesCount = architectureResult.cycles?.length || 0;
+    const unresolvedCount = architectureResult.unresolved?.length || 0;
+    const fileCount = architectureResult.nodes.filter((n) => n.kind === "file").length;
+    const testCount = architectureResult.nodes.filter((n) => n.kind === "test").length;
+
+    // Hubs with >= 4 importers
+    const count = new Map<string, number>();
+    for (const e of architectureResult.edges) {
+      if (e.kind === "imports") count.set(e.target, (count.get(e.target) ?? 0) + 1);
+    }
+    let chokePointCount = 0;
+    for (const [, val] of count) {
+      if (val >= 4) chokePointCount++;
+    }
+
+    let score = 100;
+    score -= cyclesCount * 20; // circular dependencies are severe architectural hazards
+    score -= Math.min(25, unresolvedCount * 3);
+    score -= Math.min(20, chokePointCount * 5);
+    if (testCount > 0 && fileCount > 0) {
+      const coverageRatio = testCount / fileCount;
+      if (coverageRatio >= 0.5) score += 5;
+    }
+    score = Math.max(10, Math.min(100, score));
+
+    let grade = "A+";
+    let color = "#3DE0A6"; // emerald
+    let label = "Clean Topology";
+
+    if (score >= 90) {
+      grade = "Grade A";
+      color = "#3DE0A6";
+      label = cyclesCount === 0 ? "Acyclic & Clean" : "High Modularity";
+    } else if (score >= 75) {
+      grade = "Grade B";
+      color = "#06B6D4"; // cyan
+      label = "Good Boundary";
+    } else if (score >= 60) {
+      grade = "Grade C";
+      color = "#F59E0B"; // amber
+      label = `${cyclesCount} Cycle${cyclesCount === 1 ? "" : "s"} Detected`;
+    } else {
+      grade = "Grade D";
+      color = "#FF6B6B"; // rose
+      label = "Coupling Hazards";
+    }
+
+    return {
+      score,
+      grade,
+      color,
+      label,
+      cyclesCount,
+      chokePointCount,
+      unresolvedCount,
+    };
+  }, [architectureResult]);
+
   // Snapshot Tree computation
   const snapshotEntries = useMemo(() => {
     if (!selectedCommit || !selectedCommit.tree) return [];
@@ -695,7 +756,11 @@ export function CommitHistoryView({
   return (
     <div className="space-y-5">
       {/* 1. Repository KPI Dashboard */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className={`grid gap-3 sm:grid-cols-2 ${
+          architecturalHealth ? "lg:grid-cols-5" : "lg:grid-cols-4"
+        }`}
+      >
         {/* Card 1: Active Branch */}
         <div className="hud relative overflow-hidden rounded-2xl p-4">
           <span
@@ -807,6 +872,42 @@ export function CommitHistoryView({
               : "Select commit to inspect"}
           </p>
         </div>
+
+        {/* Card 5: Architectural Health Score */}
+        {architecturalHealth && (
+          <div className="hud relative overflow-hidden rounded-2xl p-4">
+            <span
+              aria-hidden="true"
+              className="absolute -right-4 -top-4 h-16 w-16 rounded-full blur-xl"
+              style={{ backgroundColor: `${architecturalHealth.color}25` }}
+            />
+            <div className="flex items-center justify-between text-[var(--ink-3)]">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={15} style={{ color: architecturalHealth.color }} />
+                <span className="font-mono text-[11px] uppercase tracking-wider">Health Index</span>
+              </div>
+              <span
+                className="rounded px-1.5 py-0.2 font-mono text-[10px] font-bold"
+                style={{
+                  color: architecturalHealth.color,
+                  backgroundColor: `${architecturalHealth.color}15`,
+                  border: `1px solid ${architecturalHealth.color}30`,
+                }}
+              >
+                {architecturalHealth.grade}
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="font-mono text-[20px] font-semibold text-[var(--ink)]">
+                {architecturalHealth.score}
+              </span>
+              <span className="text-[12px] font-mono text-[var(--ink-3)]">/ 100</span>
+            </div>
+            <p className="mt-1 truncate font-mono text-[11px]" style={{ color: architecturalHealth.color }}>
+              {architecturalHealth.label}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 2. Filter & Search Bar */}

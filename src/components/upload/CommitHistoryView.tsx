@@ -13,6 +13,7 @@ import {
   GitBranch,
   GitCommitHorizontal,
   GitFork,
+  Layers,
   Search,
   Terminal,
   Users,
@@ -49,7 +50,13 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export function CommitHistoryView({ repo }: { repo: ParsedGitRepo }) {
+export function CommitHistoryView({
+  repo,
+  onSwitchToArchitecture,
+}: {
+  repo: ParsedGitRepo;
+  onSwitchToArchitecture?: () => void;
+}) {
   const [selectedOid, setSelectedOid] = useState<string>(() => repo.commits[0]?.oid || "");
   const [query, setQuery] = useState("");
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
@@ -510,11 +517,22 @@ export function CommitHistoryView({ repo }: { repo: ParsedGitRepo }) {
                   </button>
                 </div>
 
+                {onSwitchToArchitecture && (
+                  <button
+                    type="button"
+                    onClick={onSwitchToArchitecture}
+                    className="btn btn-ghost btn-sm flex w-full items-center justify-center gap-2 border border-[var(--violet)]/30 bg-[var(--violet)]/10 text-[var(--violet)] hover:bg-[var(--violet)]/20"
+                  >
+                    <Layers size={13} /> View Uploaded Files & Architecture
+                  </button>
+                )}
+
                 <Link
                   href="/lab"
-                  className="btn btn-ghost btn-sm flex w-full items-center justify-center gap-2"
+                  className="btn btn-ghost btn-sm flex w-full items-center justify-center gap-2 text-[var(--ink-3)] hover:text-[var(--ink)]"
+                  title="Explore GitPrism's interactive sandbox tutorial playground"
                 >
-                  <ExternalLink size={13} /> Open Visual Lab
+                  <ExternalLink size={13} /> Open Sandbox Lab (Tutorial)
                 </Link>
               </div>
             </div>

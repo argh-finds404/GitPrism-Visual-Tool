@@ -390,7 +390,12 @@ function Report({
       )}
 
       {/* Tab 1: Git Commits View */}
-      {hasCommits && activeTab === "commits" && <CommitHistoryView repo={gitRepo} />}
+      {hasCommits && activeTab === "commits" && (
+        <CommitHistoryView
+          repo={gitRepo}
+          onSwitchToArchitecture={() => setActiveTab("architecture")}
+        />
+      )}
 
       {/* Tab 2: Architecture View */}
       {(!hasCommits || activeTab === "architecture") && (

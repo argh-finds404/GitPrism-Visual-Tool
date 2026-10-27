@@ -1510,18 +1510,49 @@ export function CommitHistoryView({
                                   {activeDiff.path}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                  {(activeDiff.additions !== undefined || activeDiff.deletions !== undefined) && (
-                                    <span className="text-[10px]">
-                                      <span className="text-[#3DE0A6]">+{activeDiff.additions ?? 0}</span>{" "}
-                                      <span className="text-[#FF6B6B]">-{activeDiff.deletions ?? 0}</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedDiffIndex((prev) => Math.max(0, prev - 1))}
+                                      disabled={activeDiffIdx === 0}
+                                      className="rounded px-1.5 py-0.5 text-[10px] text-[var(--ink-3)] transition-colors hover:bg-white/5 hover:text-[var(--ink)] disabled:opacity-25"
+                                      title="Previous file diff"
+                                    >
+                                      &larr; Prev
+                                    </button>
+                                    <span className="font-mono text-[9.5px] text-[var(--ink-3)]">
+                                      {activeDiffIdx + 1}/{selectedCommit.diffs.length}
                                     </span>
-                                  )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedDiffIndex((prev) =>
+                                          Math.min(selectedCommit.diffs!.length - 1, prev + 1)
+                                        )
+                                      }
+                                      disabled={activeDiffIdx === selectedCommit.diffs.length - 1}
+                                      className="rounded px-1.5 py-0.5 text-[10px] text-[var(--ink-3)] transition-colors hover:bg-white/5 hover:text-[var(--ink)] disabled:opacity-25"
+                                      title="Next file diff"
+                                    >
+                                      Next &rarr;
+                                    </button>
+                                  </div>
+                                  <span className="text-[var(--line-2)]">&bull;</span>
                                   <button
                                     type="button"
-                                    onClick={() => copyToClipboard(activeDiff.path)}
-                                    className="flex items-center gap-1 text-[var(--ink-3)] hover:text-[var(--ink)]"
+                                    onClick={() => {
+                                      const patch = `--- a/${activeDiff.path}\n+++ b/${activeDiff.path}\n# Status: ${activeDiff.status} (+${activeDiff.additions ?? 0} / -${activeDiff.deletions ?? 0})\n\n${activeDiff.newContent ?? activeDiff.oldContent ?? ""}`;
+                                      copyToClipboard(patch);
+                                    }}
+                                    className="flex items-center gap-1 rounded bg-white/5 px-2 py-0.5 text-[10px] text-[var(--ink-3)] transition-colors hover:bg-white/10 hover:text-[var(--ink)]"
+                                    title="Copy raw patch content to clipboard"
                                   >
-                                    <Copy size={11} /> Copy
+                                    <Copy size={10} />
+                                    <span>
+                                      {copiedText?.startsWith(`--- a/${activeDiff.path}`)
+                                        ? "Patch Copied!"
+                                        : "Copy Patch"}
+                                    </span>
                                   </button>
                                 </div>
                               </div>

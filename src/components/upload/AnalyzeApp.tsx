@@ -17,6 +17,7 @@ import {
   Repeat,
   Share2,
   ShieldCheck,
+  Sparkles,
   UploadCloud,
 } from "lucide-react";
 import { analyze } from "@/features/impact-analysis/analysis-service";
@@ -38,6 +39,7 @@ import {
   setLastActiveProjectId,
   type StoredProjectSummary,
 } from "@/features/upload/project-vault";
+import { getAcmeShopDemoPreset, getPrismCoreDemoPreset } from "@/features/upload/demo-presets";
 import { SaveProject } from "./SaveProject";
 import { ShareModal } from "./ShareModal";
 import { CommitHistoryView } from "./CommitHistoryView";
@@ -247,6 +249,56 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
       });
     }
   }, [state, currentProjectId, user.id]);
+
+  const handleLoadDemoPreset = async (presetId: "acme-shop" | "prism-core") => {
+    setState({ status: "reading" });
+    const preset = presetId === "acme-shop" ? getAcmeShopDemoPreset() : getPrismCoreDemoPreset();
+
+    const result = analyze(preset.files, preset.files, {
+      base: "upload",
+      head: "upload",
+      layers: [],
+      rules: [],
+    });
+
+    const picked: Collected = {
+      files: preset.files,
+      skipped: { ignored: 0, notSource: 0, secret: 0, tooBig: 0 },
+      truncated: false,
+      bytes: Object.values(preset.files).reduce((acc, c) => acc + c.length, 0),
+    };
+
+    const projectId = `demo_${preset.id}`;
+    await saveProjectToVault({
+      id: projectId,
+      userId: user.id,
+      name: preset.name,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      fileCount: Object.keys(preset.files).length,
+      totalBytes: picked.bytes,
+      files: preset.files,
+      gitRepo: serializeGitRepo(preset.gitRepo),
+    });
+
+    if (preset.gitRepo.contributors[0]?.name && user.name === "Developer") {
+      updateProfile({
+        name: preset.gitRepo.contributors[0].name,
+        email: preset.gitRepo.contributors[0].email,
+      });
+    }
+
+    setState({
+      status: "done",
+      picked,
+      result,
+      name: preset.name,
+      gitRepo: preset.gitRepo,
+    });
+    setCurrentProjectId(projectId);
+    setLastActiveProjectId(projectId);
+    await refreshVault();
+  };
 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -484,6 +536,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
           <Idle
             onPick={handleOpenPicker}
             onOpenModal={() => setIsModalOpen(true)}
+            onLoadPreset={handleLoadDemoPreset}
             isDragging={isDragging}
             savedProjectsCount={vaultProjects.length}
           />
@@ -507,11 +560,13 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
 function Idle({
   onPick,
   onOpenModal,
+  onLoadPreset,
   isDragging,
   savedProjectsCount,
 }: {
   onPick: () => void;
   onOpenModal: () => void;
+  onLoadPreset: (presetId: "acme-shop" | "prism-core") => void;
   isDragging: boolean;
   savedProjectsCount: number;
 }) {
@@ -559,6 +614,67 @@ function Idle({
             browse directly
           </button>
         </span>
+      </div>
+
+      {/* 1-Click Demo Repositories for Reviewers & Recruiters */}
+      <div className="mt-7 rounded-2xl border border-[var(--violet)]/30 bg-[var(--violet)]/[0.04] p-4 text-left">
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--violet)]/15 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Sparkles size={15} className="text-[var(--violet)]" />
+            <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+              Try Pre-Loaded Demo Repositories
+            </h3>
+          </div>
+          <span className="rounded-full bg-[var(--violet)]/15 px-2 py-0.5 font-mono text-[10px] font-medium text-[var(--violet)]">
+            Instant 1-Click Demo
+          </span>
+        </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-[var(--ink-2)]">
+          Reviewing without a local Git folder on this device? Click either repository below to immediately explore its live multi-lane SVG DAG, AST blast radar, and commit diff inspector:
+        </p>
+        <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => onLoadPreset("acme-shop")}
+            className="group flex flex-col rounded-xl border border-[var(--line)] bg-surface/70 p-3 text-left transition-all hover:border-[var(--violet)]/50 hover:bg-surface"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[12.5px] font-semibold text-[var(--ink)] group-hover:text-[var(--violet)]">
+                acme-shop
+              </span>
+              <span className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink-3)]">
+                3 branches &bull; 13 commits
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-[var(--ink-3)] line-clamp-2">
+              Storefront monorepo with auth token rotation, session caching, and concurrent feature branches.
+            </p>
+            <span className="mt-2.5 inline-flex items-center gap-1 font-mono text-[11px] font-medium text-[var(--violet)] group-hover:underline">
+              <span>Launch Demo</span> &rarr;
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onLoadPreset("prism-core")}
+            className="group flex flex-col rounded-xl border border-[var(--line)] bg-surface/70 p-3 text-left transition-all hover:border-[var(--cyan)]/50 hover:bg-surface"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[12.5px] font-semibold text-[var(--ink)] group-hover:text-[var(--cyan)]">
+                prism-core
+              </span>
+              <span className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink-3)]">
+                Acyclic &bull; 100% Tests
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-[var(--ink-3)] line-clamp-2">
+              Microkernel event bus architecture with zero circular import hazards and boot test coverage.
+            </p>
+            <span className="mt-2.5 inline-flex items-center gap-1 font-mono text-[11px] font-medium text-[var(--cyan)] group-hover:underline">
+              <span>Launch Demo</span> &rarr;
+            </span>
+          </button>
+        </div>
       </div>
 
       <div className="mt-8 space-y-2 text-left border-t border-[var(--line)] pt-6">

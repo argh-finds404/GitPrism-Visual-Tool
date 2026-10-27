@@ -183,6 +183,12 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
       name: project.name,
       gitRepo,
     });
+    if (gitRepo?.contributors?.[0]?.name && user.name === "Developer") {
+      updateProfile({
+        name: gitRepo.contributors[0].name,
+        email: gitRepo.contributors[0].email,
+      });
+    }
     setCurrentProjectId(project.id);
     setLastActiveProjectId(project.id);
     await refreshVault();

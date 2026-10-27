@@ -46,14 +46,6 @@ function timeAgo(ms: number): string {
   return `${Math.floor(diffDay / 365)}y ago`;
 }
 
-function formatDate(ms: number): string {
-  return new Date(ms).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) {
@@ -160,7 +152,8 @@ function buildFileTree(flatEntries: { path: string; oid: string; isDir?: boolean
   const root: FileTreeNode = { name: "root", path: "", isDir: true, oid: "", children: [] };
 
   for (const item of flatEntries) {
-    const parts = item.path.split("/").filter(Boolean);
+    const normalized = item.path.replace(/\\/g, "/");
+    const parts = normalized.split("/").filter(Boolean);
     let current = root;
 
     for (let i = 0; i < parts.length; i++) {
@@ -210,6 +203,7 @@ function FileTreeItem({
   onSelectBlob,
   inspectedBlobPath,
   blobsByOid,
+  isSearchActive,
 }: {
   node: FileTreeNode;
   depth?: number;
@@ -218,8 +212,9 @@ function FileTreeItem({
   onSelectBlob: (name: string, content: string, path: string) => void;
   inspectedBlobPath?: string;
   blobsByOid?: Map<string, string>;
+  isSearchActive?: boolean;
 }) {
-  const isExpanded = expandedFolders.has(node.path);
+  const isExpanded = isSearchActive || expandedFolders.has(node.path);
   const isSelected = inspectedBlobPath === node.path;
   const blobContent = !node.isDir ? blobsByOid?.get(node.oid) : undefined;
 
@@ -264,6 +259,7 @@ function FileTreeItem({
                 onSelectBlob={onSelectBlob}
                 inspectedBlobPath={inspectedBlobPath}
                 blobsByOid={blobsByOid}
+                isSearchActive={isSearchActive}
               />
             ))}
           </div>
@@ -745,16 +741,16 @@ export function CommitHistoryView({
               </span>
             ) : (
               <span className="font-mono text-[14px] font-semibold text-[var(--ink-2)]">
-                {repo.timeSpan ? formatDate(repo.timeSpan.latest) : "Active"}
+                Ready
               </span>
             )}
           </div>
           <p className="mt-1 font-mono text-[11px] text-[var(--ink-3)]">
             {commitImpact
-              ? `${commitImpact.totalDependentsCount} dependent module${commitImpact.totalDependentsCount === 1 ? "" : "s"}`
-              : repo.timeSpan
-              ? `Since ${formatDate(repo.timeSpan.first)}`
-              : "Repository parsed"}
+              ? `${commitImpact.totalDependentsCount} dependent module${commitImpact.totalDependentsCount === 1 ? "" : "s"} \u2022 ${commitImpact.totalTestsCount} test${commitImpact.totalTestsCount === 1 ? "" : "s"}`
+              : selectedCommit
+              ? `${selectedCommit.diffs?.length ?? 0} file diffs in selection`
+              : "Select commit to inspect"}
           </p>
         </div>
       </div>
@@ -924,7 +920,7 @@ export function CommitHistoryView({
                           setSelectedDiffIndex(0);
                           setInspectedBlob(null);
                         }}
-                        style={{ minHeight: `${ROW_HEIGHT}px` }}
+                        style={{ height: `${ROW_HEIGHT}px` }}
                         className={`group relative flex cursor-pointer items-center transition-all ${
                           isSelected
                             ? "bg-[var(--violet-wash)]/70 text-[var(--ink)] ring-1 ring-inset ring-[var(--violet)]/40 shadow-sm"
@@ -939,23 +935,23 @@ export function CommitHistoryView({
                         />
 
                         {/* Commit Content on right */}
-                        <div className="min-w-0 flex-1 py-2 pr-3">
+                        <div className="min-w-0 flex-1 py-1.5 pr-3 overflow-hidden">
                           {/* Line 1: Summary + Badges + Diff Pills */}
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <span className="truncate text-[13px] font-medium leading-snug text-[var(--ink)]">
+                          <div className="flex items-center gap-1.5 sm:gap-2 truncate">
+                            <span className="truncate text-[13px] font-medium leading-snug text-[var(--ink)] shrink min-w-0">
                               {c.summary}
                             </span>
 
                             {isMerge && (
-                              <span className="flex items-center gap-1 rounded bg-purple-500/15 px-1.5 py-0.2 font-mono text-[9.5px] text-purple-300 font-semibold">
+                              <span className="flex items-center gap-1 rounded bg-purple-500/15 px-1.5 py-0.2 font-mono text-[9.5px] text-purple-300 font-semibold shrink-0">
                                 <GitMerge size={10} /> merge
                               </span>
                             )}
 
-                            {c.branches.map((b) => (
+                            {c.branches.slice(0, 2).map((b) => (
                               <span
                                 key={b}
-                                className={`rounded-full px-2 py-0.2 font-mono text-[9.5px] font-semibold ${
+                                className={`shrink-0 rounded-full px-2 py-0.2 font-mono text-[9.5px] font-semibold ${
                                   b === repo.headBranch
                                     ? "border border-[var(--amber)]/40 bg-[var(--amber)]/15 text-[var(--amber)]"
                                     : "border border-[var(--violet)]/40 bg-[var(--violet)]/15 text-[var(--violet-ink)]"
@@ -965,8 +961,14 @@ export function CommitHistoryView({
                               </span>
                             ))}
 
+                            {c.branches.length > 2 && (
+                              <span className="shrink-0 rounded-full border border-[var(--line)] px-1.5 py-0.2 font-mono text-[9px] text-[var(--ink-3)]">
+                                +{c.branches.length - 2}
+                              </span>
+                            )}
+
                             {hasDiffCounts && (
-                              <span className="ml-auto flex items-center gap-1 font-mono text-[10px]">
+                              <span className="ml-auto flex items-center gap-1 font-mono text-[10px] shrink-0">
                                 {(c.additions ?? 0) > 0 && (
                                   <span className="text-[#3DE0A6] font-semibold">+{c.additions}</span>
                                 )}
@@ -978,21 +980,21 @@ export function CommitHistoryView({
                           </div>
 
                           {/* Line 2: Author, Clock, SHA, Stats */}
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[11px] text-[var(--ink-3)]">
-                            <span className="flex items-center gap-1">
+                          <div className="mt-1 flex items-center gap-x-3 font-mono text-[11px] text-[var(--ink-3)] truncate">
+                            <span className="flex items-center gap-1 shrink-0">
                               <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-[var(--line-2)] font-mono text-[7.5px] font-bold text-[var(--ink)]">
                                 {getInitials(c.author.name)}
                               </span>
                               <span className="truncate max-w-[110px]">{c.author.name}</span>
                             </span>
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1 shrink-0">
                               <Clock size={10} /> {timeAgo(c.author.timestamp)}
                             </span>
-                            <span className="rounded border border-[var(--line)] bg-surface px-1.5 py-0.2 text-[10px]">
+                            <span className="rounded border border-[var(--line)] bg-surface px-1.5 py-0.2 text-[10px] shrink-0">
                               {c.shortOid}
                             </span>
                             {c.diffs && c.diffs.length > 0 && (
-                              <span className="text-[10px] text-[var(--ink-3)]">
+                              <span className="text-[10px] text-[var(--ink-3)] shrink-0">
                                 {c.diffs.length} file{c.diffs.length === 1 ? "" : "s"}
                               </span>
                             )}
@@ -1413,7 +1415,7 @@ export function CommitHistoryView({
 
                   {/* Hierarchical Folder/File Tree */}
                   {hierarchicalTree.length > 0 ? (
-                    <div className="max-h-[250px] divide-y divide-[var(--line)] overflow-y-auto rounded-xl border border-[var(--line)] bg-surface/50">
+                    <div className="max-h-[320px] divide-y divide-[var(--line)] overflow-y-auto rounded-xl border border-[var(--line)] bg-surface/50">
                       {hierarchicalTree.map((item) => (
                         <FileTreeItem
                           key={item.path}
@@ -1428,6 +1430,7 @@ export function CommitHistoryView({
                           }
                           inspectedBlobPath={inspectedBlob?.path}
                           blobsByOid={repo.blobsByOid}
+                          isSearchActive={!!treeSearchQuery.trim()}
                         />
                       ))}
                     </div>

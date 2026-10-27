@@ -78,6 +78,19 @@ GitPrism works like an optical prism for your codebase. White light enters; a sp
 
 ---
 
+## 🛡️ Why Local-First? (The Case for Zero-Cloud Developer Tooling)
+
+When dealing with source code and version control, **local-first is not merely an implementation detail—it is the right architectural choice for developer trust, security, and performance:**
+
+1. **Absolute Privacy & Zero IP Risk:** Developers and organizations cannot risk uploading proprietary code, internal credentials, or sensitive commit histories to third-party cloud servers. In GitPrism, all Git object inflation and AST parsing execute 100% inside your browser session. Zero code ever leaves your device without explicit consent.
+2. **Instant Zero-Latency Execution:** Rather than uploading megabytes of repository data over a network to a remote backend cluster, GitPrism streams and decompresses files directly from memory using native browser `DecompressionStream`. Full commit histories and dependency trees assemble in milliseconds.
+3. **True Offline & Air-Gapped Freedom:** GitPrism works identically on an airplane, in restricted corporate networks, or during cloud outages. You are never bottlenecked by API rate limits, paywalls, or third-party server downtime.
+4. **Complete Data Ownership & Portability:** Analyzed workspaces persist in your device's browser IndexedDB vault and can be exported into lightweight, human-readable `.gitprism.json` bundles for offline peer handoffs. You own your data—not a cloud provider.
+
+*When cloud collaboration is genuinely needed, GitPrism provides strictly opt-in, 7-day auto-pruned share links—giving you remote convenience without sacrificing local-first sovereignty.*
+
+---
+
 ## 🧭 A Guided Exploration Path (Recommended Tour)
 
 If you are exploring GitPrism for the first time or evaluating its design and functionality, here is a welcoming, self-paced sequence to experience the full platform:

@@ -8,6 +8,7 @@ import { useRepository } from "@/features/repository/RepositoryProvider";
 import { commitFiles, currentBranch, headCommitId, reachableCommits } from "@/features/repository/engine";
 import { setTheme, useTheme } from "@/lib/theme";
 import { short } from "@/lib/git";
+import { StudioSwitch } from "@/components/site/StudioSwitch";
 import { useWorkbench } from "./WorkbenchContext";
 import { ConfirmDialog } from "./bits";
 
@@ -55,18 +56,9 @@ export function Header() {
       )}
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <Link
-          href="/review/gitprism-demo/acme-shop/pull/42"
-          className="mr-1 hidden h-8 items-center rounded-lg border border-line-2 px-2.5 text-[12px] text-ink-2 transition-colors hover:border-violet hover:text-violet-ink lg:flex"
-        >
-          PR Studio
-        </Link>
-        <Link
-          href="/timefold/gitprism-demo/acme-shop"
-          className="mr-1 hidden h-8 items-center rounded-lg border border-line-2 px-2.5 text-[12px] text-ink-2 transition-colors hover:border-violet hover:text-violet-ink xl:flex"
-        >
-          TimeFold
-        </Link>
+        <div className="mr-1 hidden sm:block">
+          <StudioSwitch current="lab" />
+        </div>
         <SaveBadge />
         <span
           className="mr-1 hidden rounded-full border border-line-2 px-2.5 py-1 text-[11px] text-ink-2 xl:inline"

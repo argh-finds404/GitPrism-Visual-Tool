@@ -449,7 +449,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
                 : "your own folder & Git commits, read locally"}
             </p>
           </div>
-          <StudioSwitch current="review" />
+          <StudioSwitch current="analyze" />
           <span className="mr-auto" />
           <div className="flex items-center gap-2">
             {state.status === "done" && (

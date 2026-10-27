@@ -58,27 +58,65 @@ function StudioMenu() {
                 : { type: "spring", stiffness: 520, damping: 24, mass: 0.7, opacity: { duration: 0.14 } }
             }
             style={{ originY: 0 }}
-            className="absolute left-1/2 top-full z-50 mt-2 w-[21rem] -translate-x-1/2 rounded-2xl border border-line bg-surface p-1.5 shadow-soft"
+            className="absolute left-1/2 top-full z-50 mt-2 w-[22rem] -translate-x-1/2 overflow-hidden rounded-2xl border border-line bg-surface p-2 shadow-xl"
           >
-            {studios.map((s, i) => (
-              <motion.li
-                key={s.href}
-                role="none"
-                initial={reduce ? false : { opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={reduce ? { duration: 0 } : { delay: 0.03 * i, type: "spring", stiffness: 600, damping: 26 }}
-              >
-                <Link
-                  role="menuitem"
-                  href={s.href}
-                  onClick={() => setOpen(false)}
-                  className="block rounded-xl px-3 py-2 transition-colors hover:bg-violet-wash"
+            <div className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink-3">
+              Workspaces &amp; Labs
+            </div>
+            <ul className="mb-2 space-y-0.5">
+              {studios.filter((s) => s.category === "core").map((s, i) => (
+                <motion.li
+                  key={s.href}
+                  role="none"
+                  initial={reduce ? false : { opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={reduce ? { duration: 0 } : { delay: 0.02 * i, type: "spring", stiffness: 600, damping: 26 }}
                 >
-                  <span className="block text-[0.9rem] font-medium text-ink">{s.label}</span>
-                  <span className="block text-[0.78rem] text-ink-3">{s.blurb}</span>
-                </Link>
-              </motion.li>
-            ))}
+                  <Link
+                    role="menuitem"
+                    href={s.href}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center justify-between rounded-xl px-2.5 py-1.5 transition-colors hover:bg-violet-wash"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="block text-[0.88rem] font-medium text-ink">{s.label}</span>
+                        {s.badge && (
+                          <span className="rounded-full bg-violet/15 px-1.5 py-0.2 font-mono text-[9px] text-violet-ink">
+                            {s.badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className="block text-[0.76rem] text-ink-3">{s.blurb}</span>
+                    </div>
+                  </Link>
+                </motion.li>
+              ))}
+            </ul>
+            <div className="border-t border-line/60 px-2.5 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-ink-3">
+              PR Review Studios
+            </div>
+            <ul className="space-y-0.5 max-h-[220px] overflow-y-auto">
+              {studios.filter((s) => s.category === "review").map((s, i) => (
+                <motion.li
+                  key={s.href}
+                  role="none"
+                  initial={reduce ? false : { opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={reduce ? { duration: 0 } : { delay: 0.02 * i + 0.04, type: "spring", stiffness: 600, damping: 26 }}
+                >
+                  <Link
+                    role="menuitem"
+                    href={s.href}
+                    onClick={() => setOpen(false)}
+                    className="block rounded-xl px-2.5 py-1.5 transition-colors hover:bg-violet-wash"
+                  >
+                    <span className="block text-[0.88rem] font-medium text-ink">{s.label}</span>
+                    <span className="block text-[0.76rem] text-ink-3">{s.blurb}</span>
+                  </Link>
+                </motion.li>
+              ))}
+            </ul>
           </motion.ul>
         )}
       </AnimatePresence>

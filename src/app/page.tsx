@@ -1,18 +1,43 @@
+import dynamic from "next/dynamic";
 import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
 import { LogRail } from "@/components/site/LogRail";
 import { LabProvider } from "@/components/lab/LabProvider";
-// The scroll-driven banner. Swap this line for `Hero` (sections/Hero) to go back to the still one.
+// The scroll-driven banner.
 import { HeroDive as Hero } from "@/components/sections/HeroDive";
 import { Problem } from "@/components/sections/Problem";
 import { Transformation } from "@/components/sections/Transformation";
 import { SnapshotLab } from "@/components/sections/SnapshotLab";
 import { DiffView } from "@/components/sections/DiffView";
-import { KnowledgeMap } from "@/components/sections/KnowledgeMap";
-import { HistoryGraph } from "@/components/sections/HistoryGraph";
-import { ContentAddressing } from "@/components/sections/ContentAddressing";
-import { Journey } from "@/components/sections/Journey";
-import { ClosingCTA } from "@/components/sections/ClosingCTA";
+import {
+  KnowledgeMapFixture,
+  HistoryGraphFixture,
+  ContentAddressingFixture,
+  JourneyFixture,
+  ClosingCTAFixture,
+} from "@/components/sections/SectionFixtures";
+
+// Below-the-fold interactive sections loaded progressively with zero-CLS fixtures
+const KnowledgeMap = dynamic(
+  () => import("@/components/sections/KnowledgeMap").then((m) => m.KnowledgeMap),
+  { loading: () => <KnowledgeMapFixture /> },
+);
+const HistoryGraph = dynamic(
+  () => import("@/components/sections/HistoryGraph").then((m) => m.HistoryGraph),
+  { loading: () => <HistoryGraphFixture /> },
+);
+const ContentAddressing = dynamic(
+  () => import("@/components/sections/ContentAddressing").then((m) => m.ContentAddressing),
+  { loading: () => <ContentAddressingFixture /> },
+);
+const Journey = dynamic(
+  () => import("@/components/sections/Journey").then((m) => m.Journey),
+  { loading: () => <JourneyFixture /> },
+);
+const ClosingCTA = dynamic(
+  () => import("@/components/sections/ClosingCTA").then((m) => m.ClosingCTA),
+  { loading: () => <ClosingCTAFixture /> },
+);
 
 export default function Home() {
   return (

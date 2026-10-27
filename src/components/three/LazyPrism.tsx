@@ -33,29 +33,35 @@ export function LazyPrism({ variant = "hero", background, reducedMotion, scrollT
     const el = ref.current;
     if (!el) return;
     let handle: number | undefined;
-    // Safari has no requestIdleCallback; a short timeout stands in for it. The poster is already
-    // showing, so there's no rush to wait for a long idle gap: start as soon as the main thread
-    // has a moment free, with a low ceiling so a busy page still gets the real scene quickly.
+    let rafHandle: number | undefined;
     const hasIdle = typeof window.requestIdleCallback === "function";
-    const idle = (cb: () => void) => (hasIdle ? window.requestIdleCallback(cb, { timeout: 250 }) : window.setTimeout(cb, 120));
+    const idle = (cb: () => void) =>
+      hasIdle ? window.requestIdleCallback(cb, { timeout: 1200 }) : window.setTimeout(cb, 400);
+
     const start = () => {
       io.disconnect();
-      handle ??= idle(() => setMount(true));
+      // Allow initial paint and frame layout to settle before initializing WebGL
+      rafHandle = requestAnimationFrame(() => {
+        handle ??= idle(() => setMount(true));
+      });
     };
+
     const io = new IntersectionObserver(
       ([e]) => {
         if (e.isIntersecting) start();
       },
-      { rootMargin: "400px" },
+      { rootMargin: "250px" },
     );
     io.observe(el);
 
-    // An observer only reports while the page is actually rendering, and a scene that is already
-    // on screen shouldn't wait for that: measure once and start straight away when it is.
     const r = el.getBoundingClientRect();
-    if (r.bottom > -400 && r.top < window.innerHeight + 400 && r.width > 0) start();
+    if (r.bottom > -250 && r.top < window.innerHeight + 250 && r.width > 0) {
+      start();
+    }
+
     return () => {
       io.disconnect();
+      if (rafHandle !== undefined) cancelAnimationFrame(rafHandle);
       if (handle === undefined) return;
       if (hasIdle) window.cancelIdleCallback(handle);
       else window.clearTimeout(handle);

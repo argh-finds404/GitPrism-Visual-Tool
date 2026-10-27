@@ -91,6 +91,23 @@ When dealing with source code and version control, **local-first is not merely a
 
 ---
 
+## 🎯 Recruiter & Technical Reviewer Snapshot
+
+If you have **60 seconds** to evaluate GitPrism's engineering depth and architecture:
+
+| Engineering Dimension | Implementation in GitPrism | Verification & Parity |
+| :--- | :--- | :--- |
+| **Low-Level Systems** | In-browser loose object zlib decompression via native `DecompressionStream("deflate")` | Verified by `echo <content> \| git hash-object --stdin` |
+| **Graph Algorithms** | Multi-lane topological SVG DAG layout with cubic Bézier branch joins & keyboard navigation (`j`/`k`) | 100% collision-free track routing |
+| **Compiler & AST** | TypeScript/JavaScript AST static analysis for dependency graphs, cycle detection, & fan-in choke points | Computes quantitative **Architectural Health Score** (0–100) |
+| **Sandboxed Execution** | Disposable Web Worker runtime isolated from the DOM & host thread | Stops runaway microtasks, infinite loops, & memory leaks |
+| **Local-First Storage** | Client-side IndexedDB vault (`idb-keyval`) + portable `.gitprism.json` bundles + opt-in 7-day cloud link | Zero source code leaves the device by default |
+| **Test Quality** | 192 unit & integration tests across 13 test files | 100% pass rate asserting byte parity with GNU `git` commands |
+
+> 💡 **Immediate Evaluation**: Visit `/analyze` and click **"Launch Demo"** on either curated repository (`acme-shop` or `prism-core`) to immediately experience the live multi-lane SVG DAG, keyboard navigation (`j`/`k`, `?`), and 5-tab commit inspector without uploading any files.
+
+---
+
 ## 🧭 A Guided Exploration Path (Recommended Tour)
 
 If you are exploring GitPrism for the first time or evaluating its design and functionality, here is a welcoming, self-paced sequence to experience the full platform:

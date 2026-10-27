@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
   GitCommitHorizontal,
   GitFork,
   GitMerge,
+  Keyboard,
   Layers,
   Radio,
   Search,
@@ -27,6 +28,7 @@ import {
   ShieldCheck,
   Terminal,
   Users,
+  X,
 } from "lucide-react";
 import { flattenTree, type GitCommit, type ParsedGitRepo } from "@/features/upload/git-reader";
 import type { AnalysisResult } from "@/features/impact-analysis/types";
@@ -343,6 +345,7 @@ export function CommitHistoryView({
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [treeSearchQuery, setTreeSearchQuery] = useState("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   const branchList = useMemo(() => Object.keys(repo.branches), [repo.branches]);
 
@@ -373,6 +376,57 @@ export function CommitHistoryView({
     setCopiedText(text);
     setTimeout(() => setCopiedText(null), 1800);
   };
+
+  // Keyboard navigation & shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === "?") {
+        e.preventDefault();
+        setShowShortcutsModal((prev) => !prev);
+        return;
+      }
+
+      if (e.key === "Escape") {
+        setShowShortcutsModal(false);
+        setInspectedBlob(null);
+        return;
+      }
+
+      if (filteredCommits.length === 0) return;
+
+      const currentIdx = filteredCommits.findIndex((c) => c.oid === (selectedOid || filteredCommits[0]?.oid));
+
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIdx = Math.min(filteredCommits.length - 1, (currentIdx === -1 ? 0 : currentIdx) + 1);
+        setSelectedOid(filteredCommits[nextIdx].oid);
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIdx = Math.max(0, (currentIdx === -1 ? 0 : currentIdx) - 1);
+        setSelectedOid(filteredCommits[prevIdx].oid);
+      } else if (e.key === "1") {
+        setInspectorTab("overview");
+      } else if (e.key === "2") {
+        setInspectorTab("message");
+      } else if (e.key === "3") {
+        setInspectorTab("changes");
+      } else if (e.key === "4") {
+        setInspectorTab("tree");
+      } else if (e.key === "5") {
+        setInspectorTab("impact");
+      } else if (e.key === "c" && selectedCommit) {
+        copyToClipboard(selectedCommit.oid);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [filteredCommits, selectedOid, selectedCommit]);
 
   // Multi-Lane DAG computation
   const dagLayout = useMemo(() => {
@@ -797,16 +851,28 @@ export function CommitHistoryView({
           })}
         </div>
 
-        {/* Search input */}
-        <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-3)]" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search commits by message, SHA, author..."
-            className="w-full rounded-xl border border-[var(--line-2)] bg-surface/50 py-1.5 pl-8 pr-3 text-[12px] text-[var(--ink)] placeholder:text-[var(--ink-3)] focus:border-[var(--violet)] focus:outline-none"
-          />
+        {/* Search input & Shortcuts Button */}
+        <div className="flex items-center gap-2 min-w-[220px] flex-1 sm:max-w-md justify-end">
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-3)]" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search commits by message, SHA, author..."
+              className="w-full rounded-xl border border-[var(--line-2)] bg-surface/50 py-1.5 pl-8 pr-3 text-[12px] text-[var(--ink)] placeholder:text-[var(--ink-3)] focus:border-[var(--violet)] focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowShortcutsModal(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--line-2)] bg-surface/50 px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-3)] transition-colors hover:border-[var(--violet)]/40 hover:text-[var(--ink)]"
+            title="View keyboard shortcuts (?)"
+          >
+            <Keyboard size={13} className="text-[var(--violet)]" />
+            <span className="hidden sm:inline">Keys</span>
+            <kbd className="rounded bg-white/10 px-1 py-0.2 text-[9px] text-[var(--ink-2)]">?</kbd>
+          </button>
         </div>
       </div>
 
@@ -1660,6 +1726,91 @@ export function CommitHistoryView({
           )}
         </div>
       </div>
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            onClick={() => setShowShortcutsModal(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortcuts-title"
+            className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--line-2)] bg-[#101015] p-5 shadow-2xl backdrop-blur-xl"
+          >
+            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
+              <div className="flex items-center gap-2">
+                <div className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--violet)]/15 text-[var(--violet)]">
+                  <Keyboard size={15} />
+                </div>
+                <h3 id="shortcuts-title" className="text-[14px] font-semibold text-[var(--ink)]">
+                  Keyboard Navigation Shortcuts
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShortcutsModal(false)}
+                className="rounded-lg p-1 text-[var(--ink-3)] hover:bg-white/10 hover:text-[var(--ink)]"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2 text-[12px]">
+              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-white/[0.02] p-2.5">
+                <span className="text-[var(--ink-2)]">Next / Previous Commit in DAG</span>
+                <div className="flex items-center gap-1 font-mono text-[11px]">
+                  <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[var(--ink)]">j</kbd>
+                  <span className="text-[var(--ink-3)]">/</span>
+                  <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[var(--ink)]">k</kbd>
+                  <span className="text-[var(--ink-3)]">or</span>
+                  <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[var(--ink)]">↓</kbd>
+                  <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[var(--ink)]">↑</kbd>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-white/[0.02] p-2.5">
+                <span className="text-[var(--ink-2)]">Switch Inspector Tabs (1-5)</span>
+                <div className="flex items-center gap-1 font-mono text-[11px]">
+                  {["1", "2", "3", "4", "5"].map((num) => (
+                    <kbd key={num} className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[var(--ink)]">
+                      {num}
+                    </kbd>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-white/[0.02] p-2.5">
+                <span className="text-[var(--ink-2)]">Copy Selected Commit SHA-1</span>
+                <kbd className="rounded border border-white/20 bg-white/10 px-2 py-0.5 font-mono text-[11px] text-[var(--ink)]">
+                  c
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-white/[0.02] p-2.5">
+                <span className="text-[var(--ink-2)]">Toggle Shortcuts Cheat Sheet</span>
+                <kbd className="rounded border border-white/20 bg-white/10 px-2 py-0.5 font-mono text-[11px] text-[var(--ink)]">
+                  ?
+                </kbd>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-white/[0.02] p-2.5">
+                <span className="text-[var(--ink-2)]">Close Modals / Previews</span>
+                <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink)]">
+                  Esc
+                </kbd>
+              </div>
+            </div>
+
+            <p className="mt-4 text-center font-mono text-[11px] text-[var(--ink-3)]">
+              Press <kbd className="rounded bg-white/10 px-1 py-0.5 text-[var(--ink-2)]">Esc</kbd> anytime to dismiss
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

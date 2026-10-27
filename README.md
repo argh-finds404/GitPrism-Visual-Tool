@@ -38,6 +38,24 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
+## 💭 Developer Perspective
+
+> *"I wanted to bridge the gap between how developers write code and how Git stores and refracts architecture under the hood. So I built GitPrism—a local-first developer platform with a custom Git loose-object parser running over browser Web Streams.*
+>
+> *Rather than relying on server-side Git binaries, it decompresses zlib objects in the client, constructs a topological DAG with multi-lane Bézier routing, and parses TypeScript ASTs to identify circular dependencies and blast radius choke-points.*
+>
+> *For privacy and performance, I architected it as a hybrid local-first system: zero source code leaves the device by default, persisting in IndexedDB with portable `.gitprism.json` bundle exports, with an optional 7-day TTL cloud share powered by Prisma and PostgreSQL. The entire core is validated by a 192-test suite asserting parity against real Git CLI hash outputs."*
+
+### Why This Project Matters to Me
+Most developers interact with Git dozens of times every day, yet for many, version control remains an opaque black box—a series of memorized terminal commands executed with a lingering fear of breaking history or getting trapped in a painful merge conflict.
+
+GitPrism was born out of a desire to make the invisible visible. It isn't just another Git GUI or a shallow wrapper around a shell binary; it is an in-depth exploration of software craftsmanship:
+- **Demystifying the Engine:** Proving that Git's internals are an elegant, immutable content-addressed directed acyclic graph that anyone can intuitively grasp when given the right spatial mental model.
+- **Bridging Git with Architecture:** Connecting raw commit diffs with TypeScript & JavaScript AST dependency graphs so engineers can immediately see the true blast radius of their changes.
+- **Respecting Developer Privacy:** Demonstrating that deep developer tools can run 100% offline inside the user's browser without harvesting or uploading proprietary source code to remote servers.
+
+---
+
 ## 💡 What Problem Does GitPrism Solve?
 
 ### The Black-Box CLI Paradox
@@ -161,6 +179,21 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 | **Execution** | Web Workers & `node:vm` isolated runners | Safe, client-side test execution and merge validation |
 | **Local & Hybrid Storage**| IndexedDB (`idb-keyval`) + Prisma/PostgreSQL + `.gitprism.json` bundles | Hybrid local-first storage with zero-leak privacy & opt-in 7-day cloud sharing |
 | **Testing** | Vitest | 192 unit and integration tests validating Git hash parity and AST analysis |
+
+---
+
+## 🔌 Model Context Protocol (MCP) & AI Engineering Toolchain
+
+GitPrism was designed and engineered with the assistance of the **Model Context Protocol (MCP)**, connecting agentic pair-programming workflows to specialized domain knowledge servers:
+
+| MCP Server | Domain & Focus | Role in GitPrism's Development |
+| :--- | :--- | :--- |
+| **`threejsresources`** | 3D Graphics & WebGL Shaders | Guided optical light physics, chromatic dispersion math, and Three.js / React Three Fiber scene optimizations for the interactive landing hero. |
+| **`shadcn`** | Accessible Design Primitives | Informed keyboard-first accessibility, focus trap management, and headless HUD overlay component structures. |
+| **`21st`** | Design Inspiration & Craft | Provided design system references for the bespoke obsidian dark palette (`--paper`, `--surface`, `--ink`, `--violet`, `--cyan`, `--amber`) and fluid micro-animations. |
+| **`prisma-cli`** | Database & Migration Engine | Governed Prisma ORM 7 configuration, SQL migrations, connection adapter setups, and TTL-based cloud project sharing. |
+| **`perplexity-ask`** | Live Technical Research | Verified low-level Git object formats (raw loose object binary byte framing, SHA-1 checksum parity) and Next.js 16 Partial Prerendering APIs. |
+| **`kodza`** | UI Component Architecture | Assisted with structured SVG icon taxonomy, workspace layouts, and clean HUD action groupings. |
 
 ---
 

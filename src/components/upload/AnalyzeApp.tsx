@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   FileCode2,
+  FileDown,
   FolderOpen,
   GitBranch,
   GitCommitHorizontal,
@@ -25,9 +26,11 @@ import { getFilesFromDataTransfer, pickDirectoryNative } from "@/features/upload
 import { useUserAuth } from "@/features/auth/user-auth";
 import {
   deleteProjectFromVault,
+  downloadProjectBundle,
   getLastActiveProjectId,
   getProjectFromVault,
   listProjectsInVault,
+  parseProjectBundle,
   rehydrateGitRepo,
   saveProjectToVault,
   serializeGitRepo,
@@ -194,6 +197,29 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
     await refreshVault();
   };
 
+  const handleImportBundle = async (file: File) => {
+    setState({ status: "reading" });
+    try {
+      const text = await file.text();
+      const project = parseProjectBundle(text, user.id);
+      await saveProjectToVault(project);
+      await refreshVault();
+      await handleSelectVaultProject(project.id);
+    } catch (err) {
+      setState({
+        status: "error",
+        message: err instanceof Error ? err.message : "Failed to load project bundle.",
+      });
+    }
+  };
+
+  const handleExportBundle = async (id: string) => {
+    const project = await getProjectFromVault(id);
+    if (project) {
+      downloadProjectBundle(project);
+    }
+  };
+
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setState({ status: "reading" });
@@ -291,6 +317,23 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
     e.stopPropagation();
     setIsDragging(false);
 
+    // If a single file was dropped, check if it's a portable .gitprism.json bundle
+    if (e.dataTransfer.files && e.dataTransfer.files.length === 1) {
+      const single = e.dataTransfer.files[0];
+      if (single.name.endsWith(".gitprism.json") || (single.name.endsWith(".json") && single.size < 50_000_000)) {
+        try {
+          const text = await single.text();
+          const parsed = JSON.parse(text);
+          if (parsed.app === "GitPrism" || (parsed.project && parsed.project.files)) {
+            await handleImportBundle(single);
+            return;
+          }
+        } catch {
+          // not a JSON bundle, fall through to regular processing
+        }
+      }
+    }
+
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       const files = await getFilesFromDataTransfer(e.dataTransfer.items);
       if (files.length > 0) {
@@ -329,6 +372,34 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
           <StudioSwitch current="review" />
           <span className="mr-auto" />
           <div className="flex items-center gap-2">
+            {state.status === "done" && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentProjectId) {
+                    handleExportBundle(currentProjectId);
+                  } else {
+                    downloadProjectBundle({
+                      id: "session",
+                      userId: user.id,
+                      name: state.name ?? "project",
+                      createdAt: Date.now(),
+                      updatedAt: Date.now(),
+                      fileCount: Object.keys(state.result.headFiles).length,
+                      totalBytes: state.picked.bytes,
+                      files: state.result.headFiles,
+                      gitRepo: serializeGitRepo(state.gitRepo),
+                    });
+                  }
+                }}
+                className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+                title="Export current workspace as portable .gitprism.json bundle"
+              >
+                <FileDown size={14} className="text-[var(--cyan)]" />
+                <span className="hidden sm:inline">Export Bundle</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
@@ -369,6 +440,8 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         projects={vaultProjects}
         onSelectProject={handleSelectVaultProject}
         onDeleteProject={handleDeleteVaultProject}
+        onImportBundle={handleImportBundle}
+        onExportBundle={handleExportBundle}
       />
 
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">
@@ -419,10 +492,10 @@ function Idle({
       </div>
 
       <h2 className="mt-4 text-xl font-semibold text-[var(--ink)]">
-        {isDragging ? "Drop your repository folder here" : "Pick or drop your repository folder"}
+        {isDragging ? "Drop your repository folder or bundle here" : "Pick or drop your repository folder"}
       </h2>
       <p className="mx-auto mt-3 max-w-prose text-[13.5px] leading-relaxed text-[var(--ink-2)]">
-        Select or drag a local project folder into this window. GitPrism reads your files in the browser,
+        Select or drag a local project folder or portable <code className="font-mono text-[12px] text-[var(--cyan)]">.gitprism.json</code> bundle into this window. GitPrism reads your files in the browser,
         extracts your real <strong className="text-[var(--violet-ink)] font-medium">Git commit history</strong>, maps
         branches, and analyzes dependencies and architecture cycles.
       </p>
@@ -441,7 +514,7 @@ function Idle({
           </button>
         )}
         <span className="font-mono text-[12px] text-[var(--ink-3)]">
-          or drag and drop, or{" "}
+          or drag and drop folder / bundle, or{" "}
           <button
             type="button"
             onClick={onPick}
@@ -457,21 +530,21 @@ function Idle({
           <GitCommitHorizontal size={15} className="mt-0.5 shrink-0 text-[var(--violet)]" />
           <span>
             <strong className="font-medium text-[var(--ink)]">Git commits & branches:</strong> Reconstructs your
-            real commit DAG from your <code className="font-mono text-[11px] text-[var(--violet-ink)]">.git</code> folder.
+            real commit DAG and file diffs from your <code className="font-mono text-[11px] text-[var(--violet-ink)]">.git</code> folder.
           </span>
         </p>
         <p className="flex items-start gap-2.5 text-[12.5px] text-[var(--ink-2)]">
           <ShieldCheck size={15} className="mt-0.5 shrink-0 text-[#3DE0A6]" />
           <span>
             <strong className="font-medium text-[var(--ink)]">100% Client-Side:</strong> Read and analysed in this
-            browser. Your code and Git history are not uploaded anywhere.
+            browser. Your code and Git history are never uploaded to remote servers.
           </span>
         </p>
         <p className="flex items-start gap-2.5 text-[12.5px] text-[var(--ink-2)]">
           <Lock size={15} className="mt-0.5 shrink-0 text-[#3DE0A6]" />
           <span>
-            <strong className="font-medium text-[var(--ink)]">Safe & Sandboxed:</strong> Nothing from your folder is
-            ever executed. Files are strictly parsed.
+            <strong className="font-medium text-[var(--ink)]">Persistent Local Vault:</strong> Projects are safely
+            persisted in IndexedDB on your device with portable <code className="font-mono text-[11px] text-[var(--cyan)]">.gitprism.json</code> bundle support.
           </span>
         </p>
         <p className="flex items-start gap-2.5 text-[12.5px] text-[var(--ink-3)]">
@@ -511,6 +584,100 @@ function Failed({ message, onRetry }: { message: string; onRetry: () => void }) 
   );
 }
 
+function downloadArchitectureDossier(
+  name: string,
+  result: AnalysisResult,
+  gitRepo: ParsedGitRepo | null | undefined,
+  hubs: { path: string; importedBy: number }[]
+) {
+  const files = result.nodes.filter((n) => n.kind === "file");
+  const symbols = result.nodes.filter((n) => n.kind === "symbol");
+  const tests = result.nodes.filter((n) => n.kind === "test");
+  const importsCount = result.edges.filter((e) => e.kind === "imports").length;
+  const cyclesCount = result.cycles.length;
+  const dateStr = new Date().toISOString().split("T")[0];
+
+  const lines: string[] = [
+    `# Architecture Dossier: ${name}`,
+    `Generated by **GitPrism Local-First Architecture Studio** on ${dateStr}.`,
+    "",
+    "## 1. Executive Summary",
+    `- **Analyzed Source Files**: ${files.length}`,
+    `- **Functions / Symbols**: ${symbols.length}`,
+    `- **Direct Import Relationships**: ${importsCount}`,
+    `- **Test Cases Detected**: ${tests.length}`,
+    `- **Import Cycles Detected**: ${cyclesCount}`,
+    `- **Unresolved References**: ${result.unresolved.length}`,
+    "",
+    "## 2. Architectural Choke-Points & Inbound Fan-in",
+    "Files with the most importers. Changes to these modules produce the widest blast radius across the system:",
+    "",
+    "| Module Path | Direct Importers | Architectural Risk |",
+    "|:---|:---:|:---|",
+  ];
+
+  for (const h of hubs) {
+    const risk =
+      h.importedBy >= 5
+        ? "**Critical Hub** (High Blast Radius)"
+        : h.importedBy >= 3
+        ? "*Choke-Point* (Moderate Blast Radius)"
+        : "Standard Utility";
+    lines.push(`| \`${h.path}\` | ${h.importedBy} | ${risk} |`);
+  }
+
+  lines.push("");
+  lines.push("## 3. Structural Cycles & Coupling Hazards");
+  if (result.cycles.length === 0) {
+    lines.push("No circular dependency cycles detected. Clean acyclic import hierarchy.");
+  } else {
+    lines.push("The following circular dependency chains were identified. Circular dependencies impede tree-shaking and create initialization order hazards:");
+    lines.push("");
+    result.cycles.forEach((cycle, i) => {
+      lines.push(`### Cycle #${i + 1}`);
+      lines.push("```mermaid");
+      lines.push("graph LR");
+      for (let j = 0; j < cycle.length; j++) {
+        const next = cycle[(j + 1) % cycle.length];
+        lines.push(`  "${cycle[j]}" --> "${next}"`);
+      }
+      lines.push("```");
+      lines.push(`Path: ${cycle.join(" → ")}`);
+      lines.push("");
+    });
+  }
+
+  if (gitRepo) {
+    lines.push("");
+    lines.push("## 4. Git Repository & Velocity Profile");
+    lines.push(`- **Active Branch**: \`${gitRepo.headBranch}\``);
+    lines.push(`- **Total Analyzed Commits**: ${gitRepo.totalCommits}`);
+    lines.push(`- **Distinct Contributors**: ${gitRepo.contributors.length}`);
+    lines.push("");
+    lines.push("### Top Contributors by Commit Volume");
+    lines.push("| Contributor | Commits |");
+    lines.push("|:---|:---:|");
+    gitRepo.contributors.slice(0, 5).forEach((c) => {
+      lines.push(`| ${c.name} (\`${c.email}\`) | ${c.commitCount} |`);
+    });
+  }
+
+  lines.push("");
+  lines.push("---");
+  lines.push("*Document generated entirely offline inside the browser with GitPrism. No project files were uploaded to external servers.*");
+
+  const mdText = lines.join("\n");
+  const blob = new Blob([mdText], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ARCHITECTURE-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function Report({
   picked,
   result,
@@ -546,7 +713,7 @@ function Report({
   return (
     <div className="space-y-5">
       {/* Tab Switcher if Git repo is available */}
-      {hasCommits && (
+      {hasCommits ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line-2)] pb-4">
           <div className="flex items-center gap-2">
             <button
@@ -593,10 +760,34 @@ function Report({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadArchitectureDossier(name, result, gitRepo, hubs)}
+              className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+              title="Download Markdown summary of architecture, choke-points, and Git stats"
+            >
+              <FileDown size={14} className="text-[var(--violet)]" />
+              <span>Export Dossier (.md)</span>
+            </button>
             <span className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-surface px-2.5 py-1 font-mono text-[11px] text-[var(--ink-2)]">
               <GitBranch size={12} className="text-[var(--violet)]" /> {gitRepo.headBranch}
             </span>
           </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between border-b border-[var(--line-2)] pb-4">
+          <h3 className="font-semibold text-[var(--ink)] text-[15px]">
+            {name} Architecture & Topology
+          </h3>
+          <button
+            type="button"
+            onClick={() => downloadArchitectureDossier(name, result, gitRepo, hubs)}
+            className="btn btn-ghost btn-sm flex items-center gap-1.5 border border-[var(--line)] bg-surface text-[12px] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+            title="Download Markdown summary of architecture and choke-points"
+          >
+            <FileDown size={14} className="text-[var(--violet)]" />
+            <span>Export Dossier (.md)</span>
+          </button>
         </div>
       )}
 
@@ -673,8 +864,15 @@ function Report({
                 {hubs.map((h) => (
                   <li key={h.path} className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-white/[0.02] px-3 py-2">
                     <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-[var(--ink)]">{h.path}</span>
-                    <span className="shrink-0 font-mono text-[11px] text-[var(--ink-3)]">
-                      {h.importedBy} importer{h.importedBy === 1 ? "" : "s"}
+                    <span className="shrink-0 flex items-center gap-2">
+                      {h.importedBy >= 3 && (
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-mono font-medium text-amber-300 border border-amber-500/30">
+                          Choke-Point
+                        </span>
+                      )}
+                      <span className="font-mono text-[11px] text-[var(--ink-3)]">
+                        {h.importedBy} importer{h.importedBy === 1 ? "" : "s"}
+                      </span>
                     </span>
                   </li>
                 ))}

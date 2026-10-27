@@ -20,6 +20,15 @@ export type GitTreeEntry = {
   isDir: boolean;
 };
 
+export type GitFileDiff = {
+  path: string;
+  status: "added" | "modified" | "deleted";
+  oldContent?: string;
+  newContent?: string;
+  oldOid?: string;
+  newOid?: string;
+};
+
 export type GitCommit = {
   oid: string;
   shortOid: string;
@@ -32,6 +41,7 @@ export type GitCommit = {
   summary: string;
   branches: string[];
   isHead?: boolean;
+  diffs?: GitFileDiff[];
 };
 
 export type GitContributor = {
@@ -50,6 +60,7 @@ export type ParsedGitRepo = {
   contributors: GitContributor[];
   totalCommits: number;
   treesByOid: Map<string, GitTreeEntry[]>;
+  blobsByOid: Map<string, string>;
   timeSpan?: {
     first: number;
     latest: number;
@@ -183,6 +194,85 @@ function parseTreeContent(bytes: Uint8Array): GitTreeEntry[] {
   });
 }
 
+/**
+ * Recursively resolves all entries of a Git tree into a flat map of relative path -> { oid, mode }.
+ */
+export function flattenTree(
+  treeOid: string,
+  treesByOid: Map<string, GitTreeEntry[]>,
+  prefix = ""
+): Map<string, { oid: string; mode: string }> {
+  const result = new Map<string, { oid: string; mode: string }>();
+  const entries = treesByOid.get(treeOid);
+  if (!entries) return result;
+
+  for (const entry of entries) {
+    const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDir) {
+      const subEntries = flattenTree(entry.oid, treesByOid, fullPath);
+      for (const [subPath, val] of subEntries.entries()) {
+        result.set(subPath, val);
+      }
+    } else {
+      result.set(fullPath, { oid: entry.oid, mode: entry.mode });
+    }
+  }
+  return result;
+}
+
+/**
+ * Computes file-level diffs between a commit and its primary parent commit.
+ */
+export function computeCommitDiffs(
+  commit: GitCommit,
+  parentCommit: GitCommit | undefined,
+  treesByOid: Map<string, GitTreeEntry[]>,
+  blobsByOid: Map<string, string>
+): GitFileDiff[] {
+  if (!commit.tree) return [];
+
+  const currentFiles = flattenTree(commit.tree, treesByOid);
+  const parentFiles = parentCommit?.tree ? flattenTree(parentCommit.tree, treesByOid) : new Map();
+
+  const diffs: GitFileDiff[] = [];
+
+  // Check current files against parent
+  for (const [path, info] of currentFiles.entries()) {
+    const parentInfo = parentFiles.get(path);
+    if (!parentInfo) {
+      diffs.push({
+        path,
+        status: "added",
+        newOid: info.oid,
+        newContent: blobsByOid.get(info.oid) ?? "",
+      });
+    } else if (parentInfo.oid !== info.oid) {
+      diffs.push({
+        path,
+        status: "modified",
+        oldOid: parentInfo.oid,
+        newOid: info.oid,
+        oldContent: blobsByOid.get(parentInfo.oid) ?? "",
+        newContent: blobsByOid.get(info.oid) ?? "",
+      });
+    }
+  }
+
+  // Check for deleted files
+  for (const [path, parentInfo] of parentFiles.entries()) {
+    if (!currentFiles.has(path)) {
+      diffs.push({
+        path,
+        status: "deleted",
+        oldOid: parentInfo.oid,
+        oldContent: blobsByOid.get(parentInfo.oid) ?? "",
+      });
+    }
+  }
+
+  return diffs.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGitRepo | null> {
   const fileArray = Array.from(files);
   const gitFiles = new Map<string, File>();
@@ -248,9 +338,10 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     headOid = branches[headBranch];
   }
 
-  // 4. Discover and parse loose commit & tree objects
+  // 4. Discover and parse loose commit, tree & blob objects
   const commitsByOid = new Map<string, GitCommit>();
   const treesByOid = new Map<string, GitTreeEntry[]>();
+  const blobsByOid = new Map<string, string>();
 
   for (const [path, file] of gitFiles.entries()) {
     if (path.startsWith("objects/")) {
@@ -284,6 +375,23 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
           } else if (headerPrefix.startsWith("tree ")) {
             const entries = parseTreeContent(decompressed);
             treesByOid.set(oid, entries);
+          } else if (headerPrefix.startsWith("blob ")) {
+            let nullIdx = -1;
+            for (let i = 0; i < decompressed.length; i++) {
+              if (decompressed[i] === 0) {
+                nullIdx = i;
+                break;
+              }
+            }
+            if (nullIdx !== -1) {
+              const contentBytes = decompressed.subarray(nullIdx + 1);
+              try {
+                const text = new TextDecoder("utf-8", { fatal: false }).decode(contentBytes);
+                blobsByOid.set(oid, text);
+              } catch {
+                // ignore binary
+              }
+            }
           }
         } catch {
           // ignore unparseable objects
@@ -351,6 +459,8 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     if (commit.tree && treesByOid.has(commit.tree)) {
       commit.treeEntries = treesByOid.get(commit.tree);
     }
+    const primaryParent = commit.parents[0] ? commitsByOid.get(commit.parents[0]) : undefined;
+    commit.diffs = computeCommitDiffs(commit, primaryParent, treesByOid, blobsByOid);
   }
 
   // 7. Sort commits chronologically (newest first)
@@ -397,6 +507,7 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     contributors,
     totalCommits: commitList.length,
     treesByOid,
+    blobsByOid,
     timeSpan,
   };
 }

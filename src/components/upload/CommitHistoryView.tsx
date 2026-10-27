@@ -8,6 +8,8 @@ import {
   Clock,
   Copy,
   ExternalLink,
+  Eye,
+  EyeOff,
   FileCode2,
   Folder,
   GitBranch,
@@ -19,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ParsedGitRepo } from "@/features/upload/git-reader";
+import { DiffLines } from "@/components/diff/DiffLines";
 
 function timeAgo(ms: number): string {
   const diffSec = Math.floor((Date.now() - ms) / 1000);
@@ -60,7 +63,10 @@ export function CommitHistoryView({
   const [selectedOid, setSelectedOid] = useState<string>(() => repo.commits[0]?.oid || "");
   const [query, setQuery] = useState("");
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
-  const [inspectorTab, setInspectorTab] = useState<"overview" | "message" | "tree">("overview");
+  const [inspectorTab, setInspectorTab] = useState<"overview" | "message" | "tree" | "changes">("overview");
+  const [selectedDiffIndex, setSelectedDiffIndex] = useState<number>(0);
+  const [diffMode, setDiffMode] = useState<"unified" | "split">("unified");
+  const [inspectedBlob, setInspectedBlob] = useState<{ name: string; content: string } | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const branchList = useMemo(() => Object.keys(repo.branches), [repo.branches]);
@@ -82,8 +88,10 @@ export function CommitHistoryView({
   }, [repo.commits, selectedBranch, query]);
 
   const selectedCommit = useMemo(() => {
-    return repo.commits.find((c) => c.oid === selectedOid) || filteredCommits[0] || repo.commits[0];
-  }, [repo.commits, selectedOid, filteredCommits]);
+    if (filteredCommits.length === 0) return null;
+    const match = filteredCommits.find((c) => c.oid === selectedOid);
+    return match || filteredCommits[0];
+  }, [filteredCommits, selectedOid]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -190,6 +198,36 @@ export function CommitHistoryView({
             </select>
           </div>
 
+          {branchList.length > 1 && (
+            <div className="hidden sm:flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSelectedBranch("all")}
+                className={`rounded-lg px-2 py-1 font-mono text-[11px] transition-colors ${
+                  selectedBranch === "all"
+                    ? "bg-[var(--violet)]/20 text-[var(--violet-ink)] border border-[var(--violet)]/30 font-semibold"
+                    : "text-[var(--ink-3)] hover:text-[var(--ink)]"
+                }`}
+              >
+                All
+              </button>
+              {branchList.slice(0, 3).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setSelectedBranch(b)}
+                  className={`rounded-lg px-2 py-1 font-mono text-[11px] transition-colors ${
+                    selectedBranch === b
+                      ? "bg-[var(--violet)]/20 text-[var(--violet-ink)] border border-[var(--violet)]/30 font-semibold"
+                      : "text-[var(--ink-3)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          )}
+
           <span className="font-mono text-[12px] text-[var(--ink-3)]">
             Showing <strong className="text-[var(--ink)]">{filteredCommits.length}</strong> of {repo.totalCommits}
           </span>
@@ -235,7 +273,11 @@ export function CommitHistoryView({
                   return (
                     <li
                       key={c.oid}
-                      onClick={() => setSelectedOid(c.oid)}
+                      onClick={() => {
+                        setSelectedOid(c.oid);
+                        setSelectedDiffIndex(0);
+                        setInspectedBlob(null);
+                      }}
                       className={`group relative flex cursor-pointer items-start gap-3.5 rounded-xl px-4 py-3.5 transition-all ${
                         isSelected
                           ? "bg-[var(--violet-wash)]/70 text-[var(--ink)] ring-1 ring-inset ring-[var(--violet)]/40 shadow-sm"
@@ -340,7 +382,7 @@ export function CommitHistoryView({
                 </h4>
 
                 {/* Tab Switcher inside Inspector */}
-                <div className="mt-3 flex items-center gap-1.5">
+                <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
                   <button
                     type="button"
                     onClick={() => setInspectorTab("overview")}
@@ -362,6 +404,22 @@ export function CommitHistoryView({
                     }`}
                   >
                     Message
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInspectorTab("changes")}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                      inspectorTab === "changes"
+                        ? "bg-[var(--violet)] text-white"
+                        : "text-[var(--ink-3)] hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    Changes
+                    {selectedCommit.diffs && selectedCommit.diffs.length > 0 && (
+                      <span className="rounded-full bg-white/20 px-1 font-mono text-[10px]">
+                        {selectedCommit.diffs.length}
+                      </span>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -432,7 +490,11 @@ export function CommitHistoryView({
                           <button
                             key={p}
                             type="button"
-                            onClick={() => setSelectedOid(p)}
+                            onClick={() => {
+                              setSelectedOid(p);
+                              setSelectedDiffIndex(0);
+                              setInspectedBlob(null);
+                            }}
                             className="flex items-center gap-1 rounded-md border border-[var(--line)] bg-surface px-2 py-0.5 font-mono text-[11px] text-[var(--violet-ink)] transition-colors hover:border-[var(--violet)]"
                           >
                             <GitFork size={11} /> {p.slice(0, 7)}
@@ -461,38 +523,246 @@ export function CommitHistoryView({
                 </div>
               )}
 
+              {/* Tab: File Diffs / Changes */}
+              {inspectorTab === "changes" && (
+                <div className="space-y-3">
+                  {!selectedCommit.diffs || selectedCommit.diffs.length === 0 ? (
+                    <div className="rounded-xl border border-[var(--line)] bg-surface/40 p-6 text-center text-[12px] text-[var(--ink-3)]">
+                      <p className="font-medium text-[var(--ink-2)]">No file diffs recorded for this commit.</p>
+                      <p className="mt-1 text-[11px]">
+                        This commit is either the initial root commit or objects are stored packed in packfiles.
+                      </p>
+                    </div>
+                  ) : (
+                    (() => {
+                      const activeDiffIdx = Math.min(
+                        selectedDiffIndex,
+                        Math.max(0, selectedCommit.diffs.length - 1)
+                      );
+                      const activeDiff = selectedCommit.diffs[activeDiffIdx];
+                      let addedCount = 0;
+                      let modCount = 0;
+                      let delCount = 0;
+                      for (const d of selectedCommit.diffs) {
+                        if (d.status === "added") addedCount++;
+                        else if (d.status === "modified") modCount++;
+                        else if (d.status === "deleted") delCount++;
+                      }
+
+                      return (
+                        <div className="space-y-3">
+                          {/* Diff Bar: File Count, Badges & Unified/Split Switcher */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-2 text-[11.5px]">
+                            <div className="flex items-center gap-2 font-mono">
+                              <span className="text-[var(--ink-3)]">
+                                <strong className="text-[var(--ink)]">{selectedCommit.diffs.length}</strong> file{selectedCommit.diffs.length === 1 ? "" : "s"}
+                              </span>
+                              {addedCount > 0 && (
+                                <span className="rounded bg-[#3DE0A6]/15 px-1.5 py-0.2 text-[10px] text-[#3DE0A6] font-semibold">
+                                  +{addedCount}
+                                </span>
+                              )}
+                              {modCount > 0 && (
+                                <span className="rounded bg-[var(--cyan)]/15 px-1.5 py-0.2 text-[10px] text-[var(--cyan)] font-semibold">
+                                  ~{modCount}
+                                </span>
+                              )}
+                              {delCount > 0 && (
+                                <span className="rounded bg-[#FF6B6B]/15 px-1.5 py-0.2 text-[10px] text-[#FF6B6B] font-semibold">
+                                  -{delCount}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 rounded-lg border border-[var(--line)] bg-surface p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setDiffMode("unified")}
+                                className={`rounded px-2 py-0.5 text-[11px] font-mono transition-colors ${
+                                  diffMode === "unified"
+                                    ? "bg-[var(--violet)] text-white"
+                                    : "text-[var(--ink-3)] hover:text-[var(--ink)]"
+                                }`}
+                              >
+                                Unified
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDiffMode("split")}
+                                className={`rounded px-2 py-0.5 text-[11px] font-mono transition-colors ${
+                                  diffMode === "split"
+                                    ? "bg-[var(--violet)] text-white"
+                                    : "text-[var(--ink-3)] hover:text-[var(--ink)]"
+                                }`}
+                              >
+                                Split
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* File Selector Chips */}
+                          <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                            {selectedCommit.diffs.map((d, idx) => {
+                              const isCur = idx === activeDiffIdx;
+                              return (
+                                <button
+                                  key={d.path}
+                                  type="button"
+                                  onClick={() => setSelectedDiffIndex(idx)}
+                                  className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 font-mono text-[11px] transition-all ${
+                                    isCur
+                                      ? "border-[var(--violet)] bg-[var(--violet)]/15 text-[var(--ink)] shadow-sm font-medium"
+                                      : "border-[var(--line)] bg-surface/70 text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+                                  }`}
+                                >
+                                  <span
+                                    className={`rounded px-1 text-[9.5px] font-bold ${
+                                      d.status === "added"
+                                        ? "bg-[#3DE0A6]/20 text-[#3DE0A6]"
+                                        : d.status === "deleted"
+                                        ? "bg-[#FF6B6B]/20 text-[#FF6B6B]"
+                                        : "bg-[var(--cyan)]/20 text-[var(--cyan)]"
+                                    }`}
+                                  >
+                                    {d.status === "added" ? "+A" : d.status === "deleted" ? "-D" : "~M"}
+                                  </span>
+                                  <span className="truncate max-w-[160px]">{d.path.split("/").pop()}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Diff Inspection View */}
+                          {activeDiff && (
+                            <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[#09090d]">
+                              <div className="flex items-center justify-between border-b border-[var(--line)] bg-surface/60 px-3 py-1.5 text-[11px] font-mono text-[var(--ink-3)]">
+                                <span className="truncate text-[var(--ink)] font-medium">
+                                  {activeDiff.path}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(activeDiff.path)}
+                                  className="flex items-center gap-1 text-[var(--ink-3)] hover:text-[var(--ink)]"
+                                >
+                                  <Copy size={11} /> Copy path
+                                </button>
+                              </div>
+                              <div className="max-h-[300px] overflow-auto">
+                                <DiffLines
+                                  before={activeDiff.oldContent || ""}
+                                  after={activeDiff.newContent || ""}
+                                  mode={diffMode}
+                                  emptyText="No textual differences unpacked for this file."
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              )}
+
               {/* Tab 3: Tree Snapshot Files */}
               {inspectorTab === "tree" && (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <p className="font-mono text-[11px] text-[var(--ink-3)]">
                     Root directory entries recorded in tree{" "}
                     <code className="text-[color:var(--c-tree)]">{selectedCommit.tree?.slice(0, 7)}</code>:
                   </p>
                   {selectedCommit.treeEntries && selectedCommit.treeEntries.length > 0 ? (
-                    <div className="max-h-[300px] divide-y divide-[var(--line)] overflow-y-auto rounded-xl border border-[var(--line)] bg-surface/50">
-                      {selectedCommit.treeEntries.map((e) => (
-                        <div
-                          key={e.name}
-                          className="flex items-center justify-between gap-2 px-3 py-2 text-[12px]"
-                        >
-                          <span className="flex items-center gap-2 font-mono text-[var(--ink)]">
-                            {e.isDir ? (
-                              <Folder size={14} className="text-[var(--amber)]" />
-                            ) : (
-                              <FileCode2 size={14} className="text-[var(--cyan)]" />
-                            )}
-                            <span className="truncate">{e.name}</span>
-                          </span>
-                          <span className="font-mono text-[10.5px] text-[var(--ink-3)]">
-                            {e.oid.slice(0, 7)}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="max-h-[260px] divide-y divide-[var(--line)] overflow-y-auto rounded-xl border border-[var(--line)] bg-surface/50">
+                      {selectedCommit.treeEntries.map((e) => {
+                        const blobContent = !e.isDir ? repo.blobsByOid?.get(e.oid) : undefined;
+                        const isInspectingThis = inspectedBlob?.name === e.name;
+                        return (
+                          <div
+                            key={e.name}
+                            onClick={() => {
+                              if (!e.isDir && blobContent !== undefined) {
+                                setInspectedBlob(isInspectingThis ? null : { name: e.name, content: blobContent });
+                              }
+                            }}
+                            className={`flex items-center justify-between gap-2 px-3 py-2 text-[12px] transition-colors ${
+                              !e.isDir && blobContent !== undefined
+                                ? "cursor-pointer hover:bg-white/[0.04]"
+                                : ""
+                            }`}
+                          >
+                            <span className="flex items-center gap-2 font-mono text-[var(--ink)] truncate">
+                              {e.isDir ? (
+                                <Folder size={14} className="text-[var(--amber)] shrink-0" />
+                              ) : (
+                                <FileCode2 size={14} className="text-[var(--cyan)] shrink-0" />
+                              )}
+                              <span className="truncate">{e.name}</span>
+                            </span>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-mono text-[10.5px] text-[var(--ink-3)]">
+                                {e.oid.slice(0, 7)}
+                              </span>
+                              {blobContent !== undefined && (
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    setInspectedBlob(isInspectingThis ? null : { name: e.name, content: blobContent });
+                                  }}
+                                  className={`rounded p-1 transition-colors ${
+                                    isInspectingThis
+                                      ? "bg-[var(--violet)] text-white"
+                                      : "text-[var(--ink-3)] hover:bg-white/10 hover:text-[var(--ink)]"
+                                  }`}
+                                  title={isInspectingThis ? "Close code preview" : "Preview file content"}
+                                >
+                                  {isInspectingThis ? <EyeOff size={12} /> : <Eye size={12} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="rounded-xl border border-[var(--line)] bg-surface/40 p-4 text-center text-[12px] text-[var(--ink-3)]">
                       Tree object for this commit is packed or not in loose format.
                     </p>
+                  )}
+
+                  {/* Inline Blob Code Preview */}
+                  {inspectedBlob && (
+                    <div className="overflow-hidden rounded-xl border border-[var(--violet)]/40 bg-[#09090d] shadow-lg shadow-black/50">
+                      <div className="flex items-center justify-between border-b border-[var(--line)] bg-surface/70 px-3 py-1.5 text-[11px] font-mono">
+                        <span className="text-[var(--ink)] font-semibold truncate flex items-center gap-1.5">
+                          <FileCode2 size={12} className="text-[var(--cyan)]" /> {inspectedBlob.name}
+                          <span className="text-[var(--ink-3)] font-normal">
+                            ({inspectedBlob.content.split("\n").length} lines)
+                          </span>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(inspectedBlob.content)}
+                            className="flex items-center gap-1 text-[var(--ink-3)] hover:text-[var(--ink)]"
+                          >
+                            <Copy size={11} />
+                            <span>{copiedText === inspectedBlob.content ? "Copied" : "Copy"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInspectedBlob(null)}
+                            className="text-[var(--ink-3)] hover:text-[var(--ink)]"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                      <pre className="max-h-56 overflow-auto p-3 font-mono text-[11px] leading-relaxed text-[var(--ink-2)] whitespace-pre-wrap select-all">
+                        {inspectedBlob.content || "(empty file)"}
+                      </pre>
+                    </div>
                   )}
                 </div>
               )}
@@ -537,7 +807,13 @@ export function CommitHistoryView({
               </div>
             </div>
           ) : (
-            <p className="text-center text-[12.5px] text-[var(--ink-3)]">Select a commit to inspect.</p>
+            <div className="flex h-full min-h-[400px] flex-col items-center justify-center p-8 text-center">
+              <GitCommitHorizontal size={36} className="text-[var(--ink-3)] opacity-40" />
+              <p className="mt-3 text-[13.5px] font-medium text-[var(--ink-2)]">No commit selected</p>
+              <p className="mt-1 text-[12px] text-[var(--ink-3)]">
+                Adjust your branch filter or search query to inspect commits.
+              </p>
+            </div>
           )}
         </div>
       </div>

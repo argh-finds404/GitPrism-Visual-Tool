@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Download,
+  FileJson,
   FolderOpen,
   GitBranch,
   GitCommitHorizontal,
@@ -12,7 +14,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import type { StoredProjectSummary } from "@/features/upload/project-vault";
+import { getVaultStorageEstimate, type StoredProjectSummary } from "@/features/upload/project-vault";
 
 export function ImportModal({
   isOpen,
@@ -21,6 +23,8 @@ export function ImportModal({
   projects,
   onSelectProject,
   onDeleteProject,
+  onImportBundle,
+  onExportBundle,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -28,8 +32,18 @@ export function ImportModal({
   projects: StoredProjectSummary[];
   onSelectProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
+  onImportBundle?: (file: File) => void;
+  onExportBundle?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<"import" | "vault">("import");
+  const [storageInfo, setStorageInfo] = useState<{ usageMb: number; quotaMb: number } | null>(null);
+  const bundleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      getVaultStorageEstimate().then((est) => setStorageInfo(est));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -124,6 +138,20 @@ export function ImportModal({
         {/* Tab 1: Import */}
         {tab === "import" && (
           <div className="mt-4 space-y-4">
+            <input
+              ref={bundleInputRef}
+              type="file"
+              accept=".json,.gitprism.json"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file && onImportBundle) {
+                  onClose();
+                  onImportBundle(file);
+                }
+              }}
+            />
+
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 text-center">
               <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[var(--violet)]/10 text-[var(--violet)]">
                 <UploadCloud size={24} />
@@ -139,16 +167,28 @@ export function ImportModal({
                 are skipped instantly so nothing lags.
               </p>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onPickFolder();
-                }}
-                className="btn btn-primary btn-md mx-auto mt-5"
-              >
-                <FolderOpen size={16} /> Choose Folder to Open
-              </button>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onPickFolder();
+                  }}
+                  className="btn btn-primary btn-md"
+                >
+                  <FolderOpen size={16} /> Choose Folder to Open
+                </button>
+
+                {onImportBundle && (
+                  <button
+                    type="button"
+                    onClick={() => bundleInputRef.current?.click()}
+                    className="btn btn-ghost btn-md border border-[var(--line)] bg-surface text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+                  >
+                    <FileJson size={15} className="text-[var(--violet)]" /> Load .gitprism.json
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Privacy Guarantee Pill */}
@@ -208,6 +248,16 @@ export function ImportModal({
                     >
                       Resume
                     </button>
+                    {onExportBundle && (
+                      <button
+                        type="button"
+                        onClick={() => onExportBundle(p.id)}
+                        className="rounded-lg p-1.5 text-[var(--ink-3)] hover:bg-white/10 hover:text-[var(--ink)]"
+                        title="Export portable .gitprism.json bundle"
+                      >
+                        <Download size={13} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onDeleteProject(p.id)}
@@ -220,6 +270,19 @@ export function ImportModal({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Storage Estimate Footer */}
+        {storageInfo && (
+          <div className="mt-4 flex items-center justify-between border-t border-[var(--line)] pt-3 text-[11px] font-mono text-[var(--ink-3)]">
+            <span className="flex items-center gap-1.5">
+              <HardDrive size={12} className="text-[var(--violet)]" />
+              <span>Browser Vault: {storageInfo.usageMb} MB stored</span>
+            </span>
+            {storageInfo.quotaMb > 0 && (
+              <span>{Math.round(storageInfo.quotaMb / 1024)} GB device quota available</span>
+            )}
           </div>
         )}
       </div>

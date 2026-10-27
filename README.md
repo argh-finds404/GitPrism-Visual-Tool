@@ -52,22 +52,70 @@ MergeLab's three-way merge is a diff3 with Git's default (zealous) refinements. 
 
 Simulated: the lab's working tree and index live in memory, and there is no merging, packing, remotes or `.git` directory. The Studio's Agent Hub uses built-in rules; live MCP connections need a server-side bridge that isn't included.
 
-## Analysing your own project
+## Analysing your own project (`/analyze`)
 
-`/analyze` reads a folder you pick and reports its structure: the dependency graph, import
-cycles, imports that resolve to nothing, and the files everything leans on.
+`/analyze` reads a folder you pick and performs client-side architecture analysis and Git history extraction.
 
-**It is read in your browser.** The files are parsed with the same analyser the Studios use, in
-the tab, and are not uploaded. The limits are 400 source files and 2 MB; `node_modules`, build
-output and anything matching a secret pattern (`.env*`, `.pem`, `.key`) are skipped before being
-read, and the result states exactly what it left out.
+**100% In-Browser Privacy:** The files and `.git` metadata are unpacked and parsed entirely in your browser tab using Web Streams. Nothing leaves your machine unless you explicitly choose to save a project to the server.
 
-**Nothing you upload is executed.** The analyser only parses. The one thing this application ever
-runs is its own bundled fixture — see "Executing repository code" below. That is why an uploaded
-project gets structural analysis and not ChangeVerse or ProofGraph, which need to run tests.
+### Key Capabilities
 
-Because there is no "before" to compare against, an uploaded project is analysed as a single
-snapshot: structure, not a diff.
+1. **Native `.git` Decompression Engine (`git-reader.ts`)**:
+   - Decompresses loose Git objects directly with native browser Web Streams (`DecompressionStream("deflate")`).
+   - Parses commits, directory trees, and blobs; resolves `HEAD`, `refs/heads/*`, `packed-refs`, and reflogs (`logs/HEAD`).
+   - Automatically computes commit diffs (`added`, `modified`, `deleted`) between adjacent commits and parent pointers.
+
+2. **Interactive Commit Explorer & Line Diff Inspector (`CommitHistoryView.tsx`)**:
+   - **KPI Metrics**: Active branch, commit count, contributor velocity, and date ranges.
+   - **Branch & Message Filtering**: Instant filter chips for branches and query search.
+   - **4-Tab Inspector**:
+     - *Overview*: Commit metadata, parent commits, authored timestamp, and tree pointers.
+     - *Message*: Complete commit log with 1-click clipboard copy.
+     - *Changes*: File change badges (`+A`, `~M`, `-D`), with full unified and split diff views via `<DiffLines />`.
+     - *Snapshot Tree*: Interactive tree view with inline code previews for text blobs.
+
+3. **Architectural Choke-Points & Blast Radius Radar (`AnalyzeApp.tsx`)**:
+   - Identifies high fan-in modules (`importedBy >= 3`) as **Architectural Choke-Points**.
+   - Pinpoints circular dependencies and import cycles with immediate visual alerts.
+
+4. **1-Click Architecture Dossier Markdown Export (`ARCHITECTURE.md`)**:
+   - Generates an exhaustive, production-grade `ARCHITECTURE.md` file capturing executive summaries, choke-point rankings, circular dependency graphs, and Git contributor stats.
+
+5. **Local-First Project Vault & Portable Bundles (`project-vault.ts`)**:
+   - **IndexedDB Persistent Vault**: Automatically stores uncompressed project files and Git history locally on your device (`gitprism_vault`).
+   - **Storage Quota Health**: Displays browser IndexedDB storage usage and device quota in the import modal.
+   - **Workspace Bundles (`.gitprism.json`)**: 1-click export and import of parsed repository workspaces so teams can share analyses without re-uploading large `.git` folders.
+   - **Deterministic User Identity**: Client profile manager (display name, avatar initials, project count) adhering to Next.js 16 Partial Prerendering and SSR safety.
+
+### Step-by-Step User Guide: How to Use the Latest Features
+
+#### 1. Ingesting a Repository or Bundle
+- **Open `/analyze`**: Navigate to `http://localhost:3000/analyze` or click **Analyze** in the header.
+- **Option A (Choose Folder)**: Click **"Choose project folder"** and select any local Git repository directory. GitPrism will automatically read your source files and unpack `.git` loose objects, branch refs, and reflogs.
+- **Option B (Drag & Drop)**: Drag a repository directory directly from your desktop file explorer into the browser window.
+- **Option C (Workspace Bundle)**: Drag or load an existing `.gitprism.json` file. The workspace rehydrates instantly without re-reading raw filesystem folders.
+- **Option D (Resume from Vault)**: Click **"Resume saved project"** or open the project picker to switch instantly between previously analyzed repositories stored offline in your browser's IndexedDB vault.
+
+#### 2. Navigating the Git Commit Explorer
+- **Branch Filtering**: Use the **Branch** dropdown or click quick branch filter chips (`All`, `main`, etc.) to narrow the timeline to specific feature branches.
+- **Search Query**: Type in the search box to find commits by commit summary, SHA hash, author name, or author email in real-time.
+- **Inspecting a Commit**:
+  - Click any commit row in the timeline rail. The right-hand **Commit Inspector** automatically synchronizes.
+  - **Overview Tab**: Inspect author metadata, ISO timestamps, full 40-character SHA-1, root tree hash, and clickable parent commit buttons to walk the commit DAG.
+  - **Message Tab**: Read full commit messages with a 1-click clipboard copy button.
+  - **Changes Tab**: View file changes (`+A Added`, `~M Modified`, `-D Deleted`). Toggle between **Unified** and **Split** diff modes powered by syntax-colored line diffing.
+  - **Snapshot Tree Tab**: Inspect root directory entries recorded in that commit's tree. Click the eye icon next to any text file to open an inline syntax preview with line counts.
+- **Terminal Checkout**: Click the copy icon on the `git checkout <sha>` pill to easily copy the exact command for your local terminal.
+
+#### 3. Analyzing Architectural Choke-Points & Topology
+- **Switch Views**: Click the **"Architecture & Topology"** tab at the top of the report to switch from Git history to dependency analysis.
+- **Architectural Choke-Points**: Inspect the top modules with high fan-in (`importedBy >= 3`). These represent modules whose modification presents the largest blast radius across the repository.
+- **Circular Dependency Warnings**: Review cyclic import chains that impede tree-shaking and risk runtime initialization order bugs.
+
+#### 4. Exporting and Sharing
+- **Export Dossier (`.md`)**: Click **"Export Dossier (.md)"** in the top bar to generate a standalone `ARCHITECTURE.md` file complete with executive summaries, choke-point rankings, Mermaid dependency diagrams, and Git contributor metrics.
+- **Export Workspace Bundle (`.gitprism.json`)**: Click **"Export Bundle"** in the top navigation or inside the project vault dialog. Send this `.gitprism.json` bundle to teammates so they can explore the exact repository snapshot in GitPrism without having repository access or installing anything.
+- **Storage Management**: Open the project switcher modal to monitor your browser vault's storage usage (in MB) and available device quota. Delete obsolete projects with 1 click to reclaim space.
 
 ### Saving a project (optional, needs a database)
 

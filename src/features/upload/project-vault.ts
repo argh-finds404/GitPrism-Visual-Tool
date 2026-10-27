@@ -18,6 +18,7 @@ export type StoredProject = {
     totalCommits: number;
     contributors: GitContributor[];
     timeSpan?: { first: number; latest: number };
+    blobsByOid?: [string, string][];
   } | null;
 };
 
@@ -79,6 +80,7 @@ export function serializeGitRepo(repo: ParsedGitRepo | null | undefined) {
     totalCommits: repo.totalCommits,
     contributors: repo.contributors,
     timeSpan: repo.timeSpan,
+    blobsByOid: Array.from(repo.blobsByOid?.entries() || []),
   };
 }
 
@@ -89,6 +91,7 @@ export function rehydrateGitRepo(
   if (!serialized || !serialized.commits) return null;
   const commitsByOid = new Map<string, GitCommit>();
   const treesByOid = new Map<string, GitTreeEntry[]>();
+  const blobsByOid = new Map<string, string>(serialized.blobsByOid || []);
 
   for (const c of serialized.commits as GitCommit[]) {
     commitsByOid.set(c.oid, c);
@@ -107,6 +110,7 @@ export function rehydrateGitRepo(
     contributors: serialized.contributors || [],
     totalCommits: serialized.totalCommits || serialized.commits.length,
     treesByOid,
+    blobsByOid,
     timeSpan: serialized.timeSpan,
   };
 }
@@ -200,3 +204,67 @@ export function setLastActiveProjectId(id: string | null): void {
     // ignore
   }
 }
+
+/**
+ * Downloads the full uncompressed project workspace as a portable `.gitprism.json` bundle.
+ * Future developers can send this file to teammates or load it back instantly.
+ */
+export function downloadProjectBundle(project: StoredProject): void {
+  if (typeof window === "undefined") return;
+  const bundle = {
+    version: 1,
+    exportedAt: Date.now(),
+    app: "GitPrism",
+    project,
+  };
+  const json = JSON.stringify(bundle, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${project.name.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}.gitprism.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Parses and validates an uploaded `.gitprism.json` bundle.
+ */
+export function parseProjectBundle(jsonString: string, targetUserId: string): StoredProject {
+  const parsed = JSON.parse(jsonString);
+  const rawProject = parsed.project || parsed;
+  if (!rawProject || typeof rawProject.files !== "object") {
+    throw new Error("Invalid GitPrism bundle: missing project files");
+  }
+
+  const id = `prj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    userId: targetUserId,
+    name: rawProject.name || "imported-project",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    fileCount: Object.keys(rawProject.files).length,
+    totalBytes: Object.values(rawProject.files as Record<string, string>).reduce((n, c) => n + c.length, 0),
+    files: rawProject.files,
+    gitRepo: rawProject.gitRepo || null,
+  };
+}
+
+/**
+ * Queries client browser storage usage and quota in Megabytes.
+ */
+export async function getVaultStorageEstimate(): Promise<{ usageMb: number; quotaMb: number } | null> {
+  if (typeof navigator === "undefined" || !navigator.storage?.estimate) return null;
+  try {
+    const est = await navigator.storage.estimate();
+    const usageMb = est.usage ? Math.round((est.usage / (1024 * 1024)) * 10) / 10 : 0;
+    const quotaMb = est.quota ? Math.round((est.quota / (1024 * 1024)) * 10) / 10 : 0;
+    return { usageMb, quotaMb };
+  } catch {
+    return null;
+  }
+}
+

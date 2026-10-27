@@ -30,6 +30,45 @@ No page needs a database yet. The Prisma schema is ready for when accounts or sy
 | `npm test` | Unit and integration tests (Vitest) |
 | `npm run lint` | ESLint |
 
+## User Onboarding Guide & Recommended Workflow
+
+GitPrism is built to take a developer from visual intuition to hands-on sandboxing, repository analysis, and complex merge resolution. Here is the recommended walkthrough for new users and developers:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                       RECOMMENDED USER WORKFLOW                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Step 1: Visual Mental Model
+  ▶ Homepage (`/`)
+    ├── Optical Prism Hero: experience the metaphor (source code splitting into Git lenses)
+    ├── Chapter 2: The Reveal (`#how`): scroll through the creation of blobs, trees & commits
+    ├── Interactive Snapshot Lab (`#playground`): edit files, stage into index, watch commit DAGs
+    ├── Content Addressing (`#learn`): live SHA-1 hash generator proving identity from content
+    └── 5-Stage Journey (`#journey`): scroll-driven progression through Git foundations
+
+  Step 2: Hands-On Interactive Sandbox
+  ▶ The Workbench Lab (`/lab`)
+    ├── Safe, risk-free sandbox with an in-memory filesystem and Git object inspector
+    ├── Edit files, stage, commit, branch, compare snapshots, and solve guided challenges
+    └── Actions automatically persisted locally in your browser's IndexedDB
+
+  Step 3: Analyze Your Own Local Repositories
+  ▶ Local-First Architecture Studio (`/analyze`)
+    ├── Drop any local repository folder or `.gitprism.json` bundle directly onto the window
+    ├── Explore real commit timelines, filter branches, inspect unified/split diffs, preview files
+    ├── Switch to "Architecture & Topology" to discover high-risk Architectural Choke-Points
+    └── 1-click export of ARCHITECTURE.md dossiers and portable .gitprism.json workspace bundles
+
+  Step 4: Specialized Production Studios
+  ▶ PR Impact Studio (`/review/gitprism-demo/acme-shop/pull/42`)
+    └── Inspect PR blast radius, affected callers, and test impacts across 5 interactive 3D lenses
+  ▶ MergeLab (`/mergelab/gitprism-demo/acme-shop`)
+    └── 3-way merge workspace with conflict constellations, diff3 resolution, and in-worker test validation
+  ▶ TimeFold (`/timefold/gitprism-demo/acme-shop`)
+    └── Travel through commit history, track function DNA evolution, and bisect regressions with real test runs
+```
+
 ## Pages
 
 | Route | What it is |

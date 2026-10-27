@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { useInView } from "motion/react";
-import { usePrefersReducedMotion } from "@/lib/theme";
-import { useAutoCycle } from "@/lib/useAutoCycle";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Aurora } from "@/components/ui/Aurora";
+import { usePrefersReducedMotion } from "@/lib/theme";
 
 /* Small line illustrations, one idea per stage. */
 const glyphs = [
@@ -89,24 +87,45 @@ const stages = [
 ];
 
 export function Journey() {
-  // One stage at a time, but it walks itself: having to click five times to read five short
-  // cards was the whole experience. Any real interaction takes over for good.
   const reduce = usePrefersReducedMotion();
   const section = useRef<HTMLElement>(null);
-  const inView = useInView(section, { margin: "-20% 0px" });
-  const [picked, setPicked] = useState<number | null>(null);
-  const auto = useAutoCycle(stages.length, inView && !reduce && picked === null, 4200);
-  const active = picked ?? auto;
-  const setActive = (i: number) => setPicked(i);
+  const { scrollYProgress } = useScroll({
+    target: section,
+    offset: ["start start", "end end"],
+  });
+  const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useMotionValueEvent(scrollYProgress, "change", (p) => {
+    const raw = Math.min(4.999, Math.max(0, p * 5.1 - 0.05));
+    const s = Math.floor(raw);
+    if (s !== active) setActive(s);
+  });
+
+  const jumpTo = (i: number) => {
+    const el = section.current;
+    if (!el) return;
+    const targetIndex = Math.min(stages.length - 1, Math.max(0, i));
+    setActive(targetIndex);
+    tabs.current[targetIndex]?.focus();
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const travel = el.offsetHeight - window.innerHeight;
+    if (travel > 0) {
+      window.scrollTo({
+        top: top + ((targetIndex + 0.55) / stages.length) * travel,
+        behavior: reduce ? "auto" : "smooth",
+      });
+    }
+  };
+
   const s = stages[active];
   const next = stages[active + 1];
 
   const go = (i: number) => {
     const n = (i + stages.length) % stages.length;
-    setActive(n);
-    tabs.current[n]?.focus();
+    jumpTo(n);
   };
+
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -124,123 +143,135 @@ export function Journey() {
   };
 
   return (
-    <section ref={section} id="journey" aria-labelledby="journey-title" className="relative overflow-hidden py-28 md:py-36">
-      <Aurora tones={["amber", "violet"]} />
-      <div className="shell relative">
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
-          <h2 id="journey-title" className="display text-[clamp(2.3rem,5vw,4.4rem)] lg:col-span-7">
-            Start with what you see. Finish with how it works.
-          </h2>
-          <p className="max-w-[30rem] text-[1.04rem] leading-relaxed text-ink-2 lg:col-span-5">
-            Five stages, each built on the one before. Step through them in order.
-          </p>
-        </div>
+    <section ref={section} id="journey" aria-labelledby="journey-title" className="relative h-[440vh]">
+      <div className="sticky top-0 flex h-[100svh] flex-col justify-center overflow-hidden pt-16 md:pt-20 pb-4">
+        <Aurora tones={["amber", "violet"]} />
+        <div className="shell relative flex flex-col justify-center my-auto">
+          <div className="grid gap-4 lg:grid-cols-12 lg:items-end">
+            <h2 id="journey-title" className="display text-[clamp(1.85rem,3.4vw,2.9rem)] leading-[1.08] lg:col-span-7">
+              Start with what you see. Finish with how it works.
+            </h2>
+            <p className="max-w-[30rem] text-[0.96rem] leading-relaxed text-ink-2 lg:col-span-5">
+              Five stages, each built on the one before. Step through them in order.
+            </p>
+          </div>
 
-        <div role="tablist" aria-label="Learning path" onKeyDown={onKey} className="relative mt-16 grid grid-cols-5">
-          {/* The beam: lit up to the current stage. */}
-          <span aria-hidden="true" className="absolute left-[10%] right-[10%] top-[23px] h-px bg-line-2" />
-          <motion.span
-            aria-hidden="true"
-            className="absolute left-[10%] top-[23px] h-px origin-left"
-            style={{ width: "80%", background: "linear-gradient(90deg, var(--violet), var(--cyan), var(--add), var(--magenta), var(--amber))" }}
-            initial={false}
-            animate={{ scaleX: active / (stages.length - 1) }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          />
-          {stages.map((st, i) => {
-            const on = i === active;
-            const reached = i <= active;
-            return (
-              <button
-                key={st.title}
-                ref={(el) => {
-                  tabs.current[i] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`stage-tab-${i}`}
-                aria-selected={on}
-                aria-controls="stage-panel"
-                tabIndex={on ? 0 : -1}
-                onClick={() => setActive(i)}
-                className="group relative flex flex-col items-center gap-3 text-center"
-                style={{ ["--stage" as string]: st.color }}
-              >
-                <span
-                  className={`relative z-[1] grid h-12 w-12 place-items-center rounded-full border font-mono text-[0.8rem] transition-[background-color,color,box-shadow] duration-300 group-hover:shadow-[0_0_24px_-4px_var(--stage)] ${
-                    on ? "text-paper shadow-[0_0_30px_-6px_var(--stage)]" : "bg-paper"
-                  }`}
-                  style={{ borderColor: reached ? st.color : "var(--line-2)", color: on ? undefined : reached ? st.color : "var(--ink-3)", background: on ? st.color : undefined }}
+          <div role="tablist" aria-label="Learning path" onKeyDown={onKey} className="relative mt-7 md:mt-9 grid grid-cols-5">
+            {/* The beam: lit up to the current stage. */}
+            <span aria-hidden="true" className="absolute left-[10%] right-[10%] top-[20px] md:top-[22px] h-px bg-line-2" />
+            <motion.span
+              aria-hidden="true"
+              className="absolute left-[10%] top-[20px] md:top-[22px] h-px origin-left"
+              style={{ width: "80%", background: "linear-gradient(90deg, var(--violet), var(--cyan), var(--add), var(--magenta), var(--amber))" }}
+              initial={false}
+              animate={{ scaleX: active / (stages.length - 1) }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            />
+            {stages.map((st, i) => {
+              const on = i === active;
+              const reached = i <= active;
+              return (
+                <button
+                  key={st.title}
+                  ref={(el) => {
+                    tabs.current[i] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`stage-tab-${i}`}
+                  aria-selected={on}
+                  aria-controls="stage-panel"
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => jumpTo(i)}
+                  className="group relative flex flex-col items-center gap-2 text-center cursor-pointer"
+                  style={{ ["--stage" as string]: st.color }}
                 >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className={`hidden text-[0.95rem] font-medium transition-colors md:block ${on ? "text-ink" : "text-ink-3 group-hover:text-ink-2"}`}>{st.title}</span>
-              </button>
-            );
-          })}
-        </div>
+                  <span
+                    className={`relative z-[1] grid h-10 w-10 md:h-11 md:w-11 place-items-center rounded-full border font-mono text-[0.78rem] transition-[background-color,color,box-shadow,transform] duration-300 group-hover:shadow-[0_0_24px_-4px_var(--stage)] group-hover:scale-105 ${
+                      on ? "text-paper shadow-[0_0_30px_-6px_var(--stage)] scale-105" : "bg-paper"
+                    }`}
+                    style={{ borderColor: reached ? st.color : "var(--line-2)", color: on ? undefined : reached ? st.color : "var(--ink-3)", background: on ? st.color : undefined }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className={`hidden text-[0.88rem] font-medium transition-colors md:block ${on ? "text-ink" : "text-ink-3 group-hover:text-ink-2"}`}>{st.title}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        <div id="stage-panel" role="tabpanel" aria-labelledby={`stage-tab-${active}`} className="panel relative mx-auto mt-10 rounded-3xl max-w-[52rem] overflow-hidden p-6 md:p-9">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full opacity-25 transition-[background] duration-500"
-            style={{ background: `radial-gradient(closest-side, ${s.color}, transparent 72%)` }}
-          />
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="grid gap-6 md:grid-cols-[auto_1fr] md:items-center md:gap-9"
-            >
-              <svg
-                viewBox="0 0 52 52"
-                className="h-16 w-16 md:h-24 md:w-24"
-                style={{ color: s.color }}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+          <div id="stage-panel" role="tabpanel" aria-labelledby={`stage-tab-${active}`} className="panel relative mx-auto mt-6 md:mt-8 rounded-3xl max-w-[50rem] min-h-[220px] overflow-hidden p-6 md:p-8">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full opacity-25 transition-[background] duration-500"
+              style={{ background: `radial-gradient(closest-side, ${s.color}, transparent 72%)` }}
+            />
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="grid gap-6 md:grid-cols-[auto_1fr] md:items-center md:gap-8"
               >
-                {glyphs[active]}
-              </svg>
-              <div>
-                <p className="font-mono text-[0.78rem]" style={{ color: s.color }}>
-                  stage {active + 1} of {stages.length}
-                </p>
-                <h3 className="display mt-2 text-[clamp(1.6rem,2.6vw,2.2rem)] text-ink">{s.title}</h3>
-                <p className="mt-3 max-w-[34rem] leading-relaxed text-ink-2">{s.body}</p>
-                <ul className="mt-4 flex flex-col gap-1.5">
-                  {s.facts.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-[0.85rem] text-ink-2">
-                      <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: s.color }} aria-hidden="true" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-                  {s.href.startsWith("/") ? (
-                    <Link href={s.href} className="inline-flex items-center gap-1 text-[0.92rem] font-medium hover:underline" style={{ color: s.color }}>
-                      {s.cta} <ArrowUpRight size={15} />
-                    </Link>
-                  ) : (
-                    <a href={s.href} className="inline-flex items-center gap-1 text-[0.92rem] font-medium hover:underline" style={{ color: s.color }}>
-                      {s.cta} <ArrowUpRight size={15} />
-                    </a>
-                  )}
-                  {next && (
-                    <button type="button" onClick={() => setActive(active + 1)} className="inline-flex items-center gap-1.5 text-[0.92rem] text-ink-3 transition-colors hover:text-ink">
-                      Next: {next.title} <ArrowRight size={15} />
-                    </button>
-                  )}
+                <svg
+                  viewBox="0 0 52 52"
+                  className="h-16 w-16 md:h-24 md:w-24"
+                  style={{ color: s.color }}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {glyphs[active]}
+                </svg>
+                <div>
+                  <p className="font-mono text-[0.78rem]" style={{ color: s.color }}>
+                    stage {active + 1} of {stages.length}
+                  </p>
+                  <h3 className="display mt-2 text-[clamp(1.6rem,2.6vw,2.2rem)] text-ink">
+                    {s.href.startsWith("/") ? (
+                      <Link href={s.href} className="hover:underline">
+                        {s.title}
+                      </Link>
+                    ) : (
+                      <a href={s.href} className="hover:underline">
+                        {s.title}
+                      </a>
+                    )}
+                  </h3>
+                  <p className="mt-3 max-w-[34rem] leading-relaxed text-ink-2">{s.body}</p>
+                  <ul className="mt-4 flex flex-col gap-1.5">
+                    {s.facts.map((f) => (
+                      <li key={f} className="flex items-center gap-2 text-[0.85rem] text-ink-2">
+                        <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: s.color }} aria-hidden="true" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+                    {s.href.startsWith("/") ? (
+                      <Link href={s.href} className="inline-flex items-center gap-1 text-[0.92rem] font-medium hover:underline" style={{ color: s.color }}>
+                        {s.cta} <ArrowUpRight size={15} />
+                      </Link>
+                    ) : (
+                      <a href={s.href} className="inline-flex items-center gap-1 text-[0.92rem] font-medium hover:underline" style={{ color: s.color }}>
+                        {s.cta} <ArrowUpRight size={15} />
+                      </a>
+                    )}
+                    {next && (
+                      <button type="button" onClick={() => jumpTo(active + 1)} className="inline-flex items-center gap-1.5 text-[0.92rem] text-ink-3 transition-colors hover:text-ink cursor-pointer">
+                        Next: {next.title} <ArrowRight size={15} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </section>

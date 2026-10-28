@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -13,6 +13,8 @@ import {
   Flag,
   Info,
   MessageSquareQuote,
+  Pause,
+  Play,
   ShieldCheck,
   SkipForward,
   SplitSquareHorizontal,
@@ -112,6 +114,7 @@ function SingleSession({ session, baseFiles }: { session: AgentSession; baseFile
   const [mode, setMode] = useState<"unified" | "split">("unified");
   const [scope, setScope] = useState<"session" | "step">("session");
   const [traced, setTraced] = useState<{ line: DiffLine; eventId: string | null } | null>(null);
+  const [playing, setPlaying] = useState(false);
 
   const prov = useMemo(() => replay(baseFiles, session.events), [baseFiles, session.events]);
   const groups = useMemo(() => attempts(session.events), [session.events]);
@@ -121,6 +124,34 @@ function SingleSession({ session, baseFiles }: { session: AgentSession; baseFile
   const index = selected ? session.events.findIndex((e) => e.id === selected) : -1;
   const current = index >= 0 ? session.events[index] : null;
   const isEdit = current?.kind === "edit";
+
+  // Flight-recorder auto-step playback
+  useEffect(() => {
+    if (!playing) return;
+    const pool = shown.length ? shown : session.events;
+    if (!pool.length) return;
+    const timer = setInterval(() => {
+      setSelected((cur) => {
+        const at = pool.findIndex((e) => e.id === cur);
+        if (at >= pool.length - 1) {
+          setPlaying(false);
+          return cur;
+        }
+        const next = pool[at + 1] ?? pool[0];
+        if (next.kind === "edit") setScope("step");
+        return next.id;
+      });
+      setTraced(null);
+    }, 1100);
+    return () => clearInterval(timer);
+  }, [playing, shown, session.events]);
+
+  const readCount = useMemo(() => session.events.filter((e) => e.kind === "read").length, [session.events]);
+  const editCount = useMemo(() => session.events.filter((e) => e.kind === "edit").length, [session.events]);
+  const failCount = useMemo(
+    () => session.events.filter((e) => e.kind === "validation" && e.status !== "pass").length,
+    [session.events]
+  );
 
   // Replay: stepping moves through the log, it does not re-execute anything.
   const step = (dir: 1 | -1) => {
@@ -150,9 +181,22 @@ function SingleSession({ session, baseFiles }: { session: AgentSession; baseFile
 
   return (
     <>
-      <p className="mt-4 font-mono text-[11px] text-[var(--ink-3)]">
-        {session.title} · {short(session.baseCommit)}..{session.headCommit ? short(session.headCommit) : "uncommitted"}
-      </p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line-2)] bg-white/[0.02] px-4 py-2.5">
+        <p className="font-mono text-[11.5px] text-[var(--ink-2)]">
+          <strong className="text-[var(--ink)]">{session.title}</strong> · {short(session.baseCommit)}..{session.headCommit ? short(session.headCommit) : "uncommitted"}
+        </p>
+        <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-[var(--ink-3)]">
+          <span><strong className="text-[var(--ink)]">{session.events.length}</strong> events</span>
+          <span><strong className="text-[#7DF5FF]">{readCount}</strong> reads</span>
+          <span><strong className="text-[#FF8FB0]">{editCount}</strong> edits</span>
+          <span><strong className="text-[var(--ink)]">{groups.length}</strong> test runs</span>
+          {failCount > 0 ? (
+            <span className="rounded bg-[#FF007A]/15 px-2 py-0.5 text-[#FF8FB0]">{failCount} validation failure{failCount === 1 ? "" : "s"}</span>
+          ) : (
+            <span className="rounded bg-[#00D995]/15 px-2 py-0.5 text-[#3DE0A6]">All validations green</span>
+          )}
+        </div>
+      </div>
 
       <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <section className="hud flex min-h-0 flex-col p-4" aria-labelledby="at-timeline">
@@ -161,6 +205,14 @@ function SingleSession({ session, baseFiles }: { session: AgentSession; baseFile
               Session timeline
             </h2>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPlaying((p) => !p)}
+                className="chip h-7 gap-1.5 px-2.5 text-[11.5px] border-[var(--violet)]/40 bg-[var(--violet)]/15 text-[var(--ink)]"
+              >
+                {playing ? <Pause size={12} /> : <Play size={12} />}
+                {playing ? "Pause" : "Replay"}
+              </button>
               <button type="button" onClick={() => step(-1)} className="chip h-7 px-2" aria-label="Previous event">
                 <ChevronLeft size={14} />
               </button>

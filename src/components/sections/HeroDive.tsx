@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { motion, useScroll, useSpring, useTransform, useMotionValueEvent, type MotionValue } from "motion/react";
 import { ArrowDown, ArrowUpRight, Camera, Eye, GitBranch } from "lucide-react";
@@ -93,15 +94,13 @@ export function HeroDive() {
   const prismY = useDive(p, dive, [0, 1], ["0svh", "-16svh"], "0svh");
   const prismScale = useDive(p, dive, [0, 0.62, 1], [1, 1.4, 1.75], 1);
   const prismFade = useDive(p, dive, [0, 0.72, 1], [1, 1, 0.32], 1);
-  const fanY = useDive(p, dive, [0, 1], ["0svh", "-46svh"], "0svh");
-  const fanFade = useDive(p, dive, [0, 0.3, 0.68, 0.95], [0, 0.35, 0.85, 0], 0.4);
-  const fanScale = useDive(p, dive, [0, 1], [1, 2.6], 1);
+  const fanY = useDive(p, dive, [0, 1], ["0svh", "-24svh"], "0svh");
+  const fanFade = useDive(p, dive, [0, 0.3, 0.68, 0.95], [0, 0.35, 0.78, 0], 0.4);
+  const fanScale = useDive(p, dive, [0, 1], [1, 1.35], 1);
 
-  // The type sits nearest the camera, so it leaves first and fastest.
-  const typeY = useDive(p, dive, [0, LANDING], ["0svh", "-46svh"], "0svh");
-  const typeFade = useDive(p, dive, [0, 0.3, 0.5], [1, 1, 0], 1);
-  const typeBlur = useTransform(p, [0, 0.3, 0.52], dive ? [0, 0, 7] : [0, 0, 0]);
-  const typeFilter = useTransform(typeBlur, (b) => `blur(${b.toFixed(2)}px)`);
+  // The type sits nearest the camera, so it leaves first and fastest via GPU transform + opacity.
+  const typeY = useDive(p, dive, [0, LANDING], ["0svh", "-36svh"], "0svh");
+  const typeFade = useDive(p, dive, [0, 0.28, 0.48], [1, 0.95, 0], 1);
   const typeHint = useDive(p, dive, [0, 0.12], [1, 0], 1);
 
   // The payload arrives rather than passing: the outputs rise out of the prism and settle.
@@ -235,7 +234,7 @@ export function HeroDive() {
             className={`shell flex flex-col justify-center pt-28 md:pt-32 ${
               dive ? "absolute inset-x-0 top-0 h-full pb-24" : "flex-1"
             }`}
-            style={{ y: typeY, opacity: typeFade, filter: typeFilter, willChange: dive ? "transform, opacity" : undefined }}
+            style={{ y: typeY, opacity: typeFade, willChange: dive ? "transform, opacity" : undefined }}
           >
             <motion.div
               className="flex items-center gap-3"
@@ -292,6 +291,9 @@ export function HeroDive() {
               <a href="#playground" className="btn btn-primary">
                 Explore the playground <ArrowUpRight size={17} className="btn-arrow" />
               </a>
+              <Link href="/analyze" className="btn btn-ghost">
+                Upload local folder <ArrowUpRight size={15} className="btn-arrow" />
+              </Link>
               <a href="#how" className="btn btn-ghost">
                 See how it works
               </a>
@@ -361,8 +363,8 @@ export function HeroDive() {
           </div>
         </div>
 
-        {/* The travel: empty height that the camera reads as distance. */}
-        {dive && <div aria-hidden="true" className="h-[180svh]" />}
+        {/* The travel: compact height so camera transition feels responsive without scroll-stall. */}
+        {dive && <div aria-hidden="true" className="h-[105svh]" />}
       </div>
     </section>
   );

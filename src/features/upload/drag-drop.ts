@@ -7,7 +7,22 @@ const IGNORED_DIRS = new Set([
   ".venv",
   "__pycache__",
   "coverage",
+  ".turbo",
+  ".cache",
+  "out",
+  "target",
 ]);
+
+function shouldSkipGitSubdir(parentPath: string, dirName: string): boolean {
+  const norm = parentPath.replace(/\\/g, "/");
+  if ((norm === ".git" || norm.endsWith("/.git")) && (dirName === "hooks" || dirName === "info" || dirName === "lfs" || dirName === "worktrees")) {
+    return true;
+  }
+  if ((norm === ".git/objects" || norm.endsWith("/.git/objects")) && (dirName === "pack" || dirName === "info")) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Recursively extracts File objects from a browser drag-and-drop event,
@@ -34,7 +49,7 @@ export async function getFilesFromDataTransfer(items: DataTransferItemList): Pro
       }
       files.push(file);
     } else if (entry.isDirectory) {
-      if (IGNORED_DIRS.has(entry.name)) {
+      if (IGNORED_DIRS.has(entry.name) || shouldSkipGitSubdir(path, entry.name)) {
         return;
       }
       const reader = entry.createReader();
@@ -99,7 +114,7 @@ export async function pickDirectoryNative(): Promise<{ files: File[]; cancelled:
             }
             files.push(file);
           } else if (entry.kind === "directory") {
-            if (IGNORED_DIRS.has(entry.name)) {
+            if (IGNORED_DIRS.has(entry.name) || shouldSkipGitSubdir(path, entry.name)) {
               continue;
             }
             await traverseDir(entry, entryPath);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CircleHelp, Clock, Link2Off, Loader2, Play, Sparkles, Spline, Target } from "lucide-react";
 import type { Candidate } from "@/features/changeverse/candidates";
@@ -72,7 +72,7 @@ const RESULT_CLS: Record<string, string> = {
 
 export function ProofGraphApp({ owner, repo, list }: { owner: string; repo: string; list: Candidate[] }) {
   const [selected, setSelected] = useState(list[0]?.id ?? "");
-  const [run, setRun] = useState<Run>({ status: "idle" });
+  const [run, setRun] = useState<Run>(() => (list[0]?.id ? { status: "running" } : { status: "idle" }));
 
   const current = list.find((c) => c.id === selected);
   // Evidence is always rated against the revision being read, never the one it was collected at.
@@ -81,21 +81,59 @@ export function ProofGraphApp({ owner, repo, list }: { owner: string; repo: stri
     [run, current],
   );
 
-  const go = async () => {
-    setRun({ status: "running" });
-    try {
-      const res = await fetch(`/api/repos/${owner}/${repo}/proofgraph`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidate: selected }),
-      });
-      const data = await res.json();
-      if (!res.ok) return setRun({ status: "error", message: data.error ?? `Evidence collection failed (${res.status}).` });
-      setRun({ status: "done", candidate: data.candidate, graph: data.graph });
-    } catch {
-      setRun({ status: "error", message: "Could not reach the evidence service. Nothing was collected." });
-    }
+  const collectForCandidate = useCallback(
+    async (candidateId: string) => {
+      if (!candidateId) return;
+      setRun({ status: "running" });
+      try {
+        const res = await fetch(`/api/repos/${owner}/${repo}/proofgraph`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidate: candidateId }),
+        });
+        const data = await res.json();
+        if (!res.ok) return setRun({ status: "error", message: data.error ?? `Evidence collection failed (${res.status}).` });
+        setRun({ status: "done", candidate: data.candidate, graph: data.graph });
+      } catch {
+        setRun({ status: "error", message: "Could not reach the evidence service. Nothing was collected." });
+      }
+    },
+    [owner, repo],
+  );
+
+  const selectCandidate = (candidateId: string) => {
+    setSelected(candidateId);
+    void collectForCandidate(candidateId);
   };
+
+  const go = () => void collectForCandidate(selected);
+
+  // Auto-collect evidence on mount so the reviewer immediately sees the evidence graph.
+  useEffect(() => {
+    const initialId = list[0]?.id;
+    if (!initialId) return;
+    let alive = true;
+    fetch(`/api/repos/${owner}/${repo}/proofgraph`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidate: initialId }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!alive) return;
+        if (!res.ok) {
+          setRun({ status: "error", message: data.error ?? `Evidence collection failed (${res.status}).` });
+        } else {
+          setRun({ status: "done", candidate: data.candidate, graph: data.graph });
+        }
+      })
+      .catch(() => {
+        if (alive) setRun({ status: "error", message: "Could not reach the evidence service. Nothing was collected." });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [owner, repo, list]);
 
   return (
     <main className="studio min-h-[100dvh]">
@@ -116,7 +154,7 @@ export function ProofGraphApp({ owner, repo, list }: { owner: string; repo: stri
           <label htmlFor="pg-candidate" className="sr-only">
             Change to collect evidence for
           </label>
-          <select id="pg-candidate" value={selected} onChange={(e) => setSelected(e.target.value)} className="tf-input max-w-[22rem] flex-1 text-[12.5px]">
+          <select id="pg-candidate" value={selected} onChange={(e) => selectCandidate(e.target.value)} className="tf-input max-w-[22rem] flex-1 text-[12.5px]">
             {list.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.kind === "pull" ? c.label : `commit · ${c.label}`}
@@ -128,7 +166,28 @@ export function ProofGraphApp({ owner, repo, list }: { owner: string; repo: stri
             {run.status === "running" ? "Collecting" : "Collect evidence"}
           </button>
         </div>
-        {current && <p className="mx-auto mt-2 max-w-[1200px] font-mono text-[11px] text-[var(--ink-3)]">{current.detail}</p>}
+        {current && (
+          <div className="mx-auto mt-2.5 flex max-w-[1200px] flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-mono text-[10.5px] uppercase tracking-wider text-[var(--ink-3)] mr-1">Quick Switch:</span>
+              {list.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => selectCandidate(c.id)}
+                  className={`rounded-lg px-2.5 py-1 font-mono text-[11px] transition-all ${
+                    selected === c.id
+                      ? "bg-[var(--violet)] text-white shadow-sm"
+                      : "border border-[var(--line)] bg-white/[0.03] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  {c.kind === "pull" ? c.label : c.label.slice(0, 28)}
+                </button>
+              ))}
+            </div>
+            <p className="font-mono text-[11px] text-[var(--ink-3)]">{current.detail}</p>
+          </div>
+        )}
       </header>
 
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">

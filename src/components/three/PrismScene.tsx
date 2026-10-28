@@ -39,14 +39,22 @@ function useWindowPointer() {
 function useScrollProgress(target?: React.RefObject<HTMLElement | null>) {
   const p = useRef(0);
   useEffect(() => {
-    const onScroll = () => {
+    let cachedHeight = window.innerHeight;
+    const measure = () => {
       const el = target?.current;
-      const h = el ? el.offsetHeight : window.innerHeight;
-      p.current = Math.min(1, Math.max(0, window.scrollY / Math.max(1, h)));
+      cachedHeight = Math.max(1, el ? el.offsetHeight : window.innerHeight);
     };
+    const onScroll = () => {
+      p.current = Math.min(1, Math.max(0, window.scrollY / cachedHeight));
+    };
+    measure();
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", measure);
+    };
   }, [target]);
   return p;
 }
@@ -302,8 +310,8 @@ function HeroPrism({
         <mesh ref={prism} geometry={geometry}>
           <MeshTransmissionMaterial
             background={bg}
-            samples={quality === "high" ? 6 : 3}
-            resolution={quality === "high" ? 512 : 256}
+            samples={quality === "high" ? 3 : 2}
+            resolution={quality === "high" ? 256 : 128}
             transmission={1}
             thickness={0.7}
             roughness={0.04}
@@ -312,9 +320,8 @@ function HeroPrism({
             anisotropicBlur={0.2}
             distortion={0.25}
             distortionScale={0.4}
-            temporalDistortion={0.08}
-            backside={quality === "high"}
-            backsideThickness={0.25}
+            temporalDistortion={0}
+            backside={false}
             color={dark ? "#e6ddff" : "#ffffff"}
             attenuationColor="#e4dbff"
             attenuationDistance={6}
@@ -410,8 +417,8 @@ function FinaleCrystal({ reducedMotion, pointer }: { reducedMotion?: boolean; po
         <octahedronGeometry args={[1, 0]} />
         <MeshTransmissionMaterial
           background={bg}
-          samples={4}
-          resolution={384}
+          samples={3}
+          resolution={256}
           transmission={1}
           thickness={2}
           roughness={0.08}
@@ -420,7 +427,7 @@ function FinaleCrystal({ reducedMotion, pointer }: { reducedMotion?: boolean; po
           anisotropicBlur={0.3}
           distortion={0.2}
           distortionScale={0.3}
-          temporalDistortion={0.05}
+          temporalDistortion={0}
           color="#e2d8ff"
           iridescence={0.8}
           iridescenceIOR={1.3}

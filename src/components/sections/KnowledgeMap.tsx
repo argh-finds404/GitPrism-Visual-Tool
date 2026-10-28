@@ -160,9 +160,8 @@ export function KnowledgeMap() {
                   y2={B.y}
                   vectorEffect="non-scaling-stroke"
                   stroke={color}
-                  strokeWidth={lit ? 1.8 : 1}
-                  style={{ filter: lit ? `drop-shadow(0 0 4px ${color})` : undefined }}
-                  className={`transition-[stroke] duration-300 ${lit ? "flow" : ""}`}
+                  strokeWidth={lit ? 2 : 1}
+                  className={`transition-[stroke] duration-300 ${lit && inView ? "flow" : ""}`}
                 />
               );
             })}

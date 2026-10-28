@@ -11,10 +11,8 @@ import {
   GitCommitHorizontal,
   HardDrive,
   Layers,
-  Link2Off,
   Loader2,
   Lock,
-  Repeat,
   Share2,
   ShieldCheck,
   Sparkles,
@@ -40,12 +38,11 @@ import {
   type StoredProjectSummary,
 } from "@/features/upload/project-vault";
 import { getAcmeShopDemoPreset, getPrismCoreDemoPreset } from "@/features/upload/demo-presets";
-import { SaveProject } from "./SaveProject";
 import { ShareModal } from "./ShareModal";
 import { CommitHistoryView } from "./CommitHistoryView";
+import { ArchitectureStudioView } from "./ArchitectureStudioView";
 import { UserIdentityBar } from "./UserIdentityBar";
 import { ImportModal } from "./ImportModal";
-import { FindingBadge } from "@/components/impact-studio/hud/ui";
 import { PrismMark } from "@/components/brand/PrismMark";
 import { StudioSwitch } from "@/components/site/StudioSwitch";
 
@@ -477,11 +474,22 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
 
             <button
               type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="btn btn-ghost btn-sm flex items-center gap-1.5"
+              onClick={handleOpenPicker}
+              className="btn btn-primary btn-sm flex items-center gap-1.5"
+              title="Pick a local repository folder directly from your machine"
             >
               <FolderOpen size={14} />
-              <span>{state.status === "done" ? "Switch project" : "Import project"}</span>
+              <span>Upload Folder</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="btn btn-ghost btn-sm flex items-center gap-1.5"
+              title="Open Local Project Vault or import .gitprism.json bundle"
+            >
+              <HardDrive size={14} />
+              <span className="hidden sm:inline">{state.status === "done" ? "Vault & Bundles" : "Saved Vault"}</span>
             </button>
             <UserIdentityBar
               user={user}
@@ -531,6 +539,21 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
         />
       )}
 
+      {/* Global drag-and-drop overlay when a project is already open */}
+      {isDragging && state.status === "done" && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="hud flex max-w-md flex-col items-center rounded-3xl border-2 border-dashed border-[var(--violet)] bg-surface/95 p-8 text-center shadow-2xl">
+            <UploadCloud size={40} className="animate-bounce text-[var(--violet)]" />
+            <h2 className="mt-3 text-lg font-semibold text-[var(--ink)]">
+              Drop folder or .gitprism.json to switch workspace
+            </h2>
+            <p className="mt-1 text-[12.5px] text-[var(--ink-2)]">
+              GitPrism will parse the dropped repository locally and save it to your Vault.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-[1200px] px-4 py-6 md:px-6">
         {state.status === "idle" && (
           <Idle
@@ -542,7 +565,7 @@ export function AnalyzeApp({ initial }: { initial?: { name: string; files: Recor
           />
         )}
         {state.status === "reading" && <Reading />}
-        {state.status === "error" && <Failed message={state.message} onRetry={() => setIsModalOpen(true)} />}
+        {state.status === "error" && <Failed message={state.message} onRetry={handleOpenPicker} onOpenVault={() => setIsModalOpen(true)} />}
         {state.status === "done" && (
           <Report
             picked={state.picked}
@@ -592,29 +615,21 @@ function Idle({
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <button type="button" onClick={onOpenModal} className="btn btn-primary btn-md">
-          <FolderOpen size={16} /> Choose project folder
+        <button type="button" onClick={onPick} className="btn btn-primary btn-md">
+          <FolderOpen size={16} /> Choose project folder (1-click)
         </button>
-        {savedProjectsCount > 0 && (
-          <button
-            type="button"
-            onClick={onOpenModal}
-            className="btn btn-ghost btn-md border border-[var(--violet)]/30 bg-[var(--violet)]/10 text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
-          >
-            <HardDrive size={15} /> Resume saved project ({savedProjectsCount})
-          </button>
-        )}
-        <span className="font-mono text-[12px] text-[var(--ink-3)]">
-          or drag and drop folder / bundle, or{" "}
-          <button
-            type="button"
-            onClick={onPick}
-            className="underline hover:text-[var(--ink)]"
-          >
-            browse directly
-          </button>
-        </span>
+        <button
+          type="button"
+          onClick={onOpenModal}
+          className="btn btn-ghost btn-md border border-[var(--violet)]/30 bg-[var(--violet)]/10 text-[var(--violet-ink)] hover:bg-[var(--violet)]/20"
+        >
+          <HardDrive size={15} />{" "}
+          {savedProjectsCount > 0 ? `Saved Vault (${savedProjectsCount}) & Bundles` : "Import .gitprism.json Bundle"}
+        </button>
       </div>
+      <p className="mt-2.5 font-mono text-[11.5px] text-[var(--ink-3)]">
+        Tip: You can also drag and drop any local repository folder or <code className="text-[var(--cyan)]">.gitprism.json</code> file anywhere onto this page.
+      </p>
 
       {/* 1-Click Demo Repositories for Reviewers & Recruiters */}
       <div className="mt-7 rounded-2xl border border-[var(--violet)]/30 bg-[var(--violet)]/[0.04] p-4 text-left">
@@ -723,15 +738,20 @@ function Reading() {
   );
 }
 
-function Failed({ message, onRetry }: { message: string; onRetry: () => void }) {
+function Failed({ message, onRetry, onOpenVault }: { message: string; onRetry: () => void; onOpenVault: () => void }) {
   return (
     <div className="hud mx-auto max-w-2xl p-8 text-center" role="alert">
       <AlertTriangle size={26} className="mx-auto text-[#FFD166]" />
       <h2 className="mt-4 text-lg font-semibold text-[var(--ink)]">Nothing to analyse</h2>
       <p className="mx-auto mt-2 max-w-prose text-[13.5px] leading-relaxed text-[var(--ink-2)]">{message}</p>
-      <button type="button" onClick={onRetry} className="btn btn-ghost btn-sm mx-auto mt-5">
-        Choose another folder
-      </button>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <button type="button" onClick={onRetry} className="btn btn-primary btn-sm">
+          <FolderOpen size={14} /> Choose another folder
+        </button>
+        <button type="button" onClick={onOpenVault} className="btn btn-ghost btn-sm">
+          <HardDrive size={14} /> Open Vault / Bundles
+        </button>
+      </div>
     </div>
   );
 }
@@ -849,8 +869,6 @@ function Report({
   );
 
   const files = result.nodes.filter((n) => n.kind === "file");
-  const symbols = result.nodes.filter((n) => n.kind === "symbol");
-  const tests = result.nodes.filter((n) => n.kind === "test");
 
   // Who leans on whom: an import edge points from the importer to the imported file.
   const hubs = useMemo(() => {
@@ -861,8 +879,6 @@ function Report({
       .sort((a, b) => b.importedBy - a.importedBy)
       .slice(0, 8);
   }, [result, files]);
-
-  const skippedTotal = Object.values(picked.skipped).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-5">
@@ -974,124 +990,16 @@ function Report({
         />
       )}
 
-      {/* Tab 2: Architecture View */}
+      {/* Tab 2: Architecture & Topology Studio View */}
       {(!hasCommits || activeTab === "architecture") && (
-        <div className="space-y-5">
-          <div className="flex flex-wrap gap-2">
-            <Stat n={files.length} label="source files" />
-            <Stat n={symbols.length} label="functions" />
-            <Stat n={result.edges.filter((e) => e.kind === "imports").length} label="imports" />
-            <Stat n={tests.length} label="test cases" />
-            <Stat n={result.cycles.length} label="import cycles" tone={result.cycles.length ? "warn" : undefined} />
-            <Stat n={result.unresolved.length} label="unresolved imports" tone={result.unresolved.length ? "warn" : undefined} />
-          </div>
-
-          {(picked.truncated || skippedTotal > 0) && (
-            <p className="rounded-xl border border-[var(--line-2)] bg-white/[0.02] px-4 py-3 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
-              {picked.truncated && (
-                <>
-                  <strong className="font-semibold text-[#FFD166]">This is a partial read.</strong> The limit of {LIMITS.files} files
-                  or {Math.round(LIMITS.bytes / 1000)} KB was reached, so what you see below describes only part of the project.{" "}
-                </>
-              )}
-              Skipped {skippedTotal}: {picked.skipped.ignored} in ignored directories, {picked.skipped.notSource} not source,{" "}
-              {picked.skipped.secret} that looked like secrets, {picked.skipped.tooBig} too large.
-            </p>
-          )}
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <section className="hud p-4" aria-labelledby="an-findings">
-              <h2 id="an-findings" className="border-b border-[var(--line-2)] pb-3 text-[14px] font-semibold text-[var(--ink)]">
-                What the analyser found
-              </h2>
-              {result.findings.length === 0 ? (
-                <p className="py-6 text-center text-[13px] text-[var(--ink-3)]">
-                  No cycles and no unresolved imports. That is what was checked — not a clean bill of health.
-                </p>
-              ) : (
-                <ul className="mt-3 space-y-2">
-                  {result.findings.slice(0, 12).map((f) => (
-                    <li key={f.id} className="rounded-lg border border-[var(--line)] bg-white/[0.02] p-3">
-                      <div className="flex flex-wrap items-start gap-2">
-                        <FindingBadge kind={f.kind} />
-                        <span className="min-w-0 flex-1 text-[12.5px] text-[var(--ink)]">{f.title}</span>
-                      </div>
-                      <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--ink-2)]">{f.detail}</p>
-                      {f.locations[0] && (
-                        <p className="mt-1 font-mono text-[11px] text-[var(--ink-3)]">
-                          {f.locations[0].path}:{f.locations[0].line}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="hud p-4" aria-labelledby="an-hubs">
-              <h2 id="an-hubs" className="border-b border-[var(--line-2)] pb-3 text-[14px] font-semibold text-[var(--ink)]">
-                What the project leans on
-              </h2>
-              <p className="mt-1.5 text-[12.5px] text-[var(--ink-3)]">
-                Files with the most importers. A change in one of these reaches furthest.
-              </p>
-              <ul className="mt-3 space-y-1.5">
-                {hubs.map((h) => (
-                  <li key={h.path} className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-white/[0.02] px-3 py-2">
-                    <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-[var(--ink)]">{h.path}</span>
-                    <span className="shrink-0 flex items-center gap-2">
-                      {h.importedBy >= 3 && (
-                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-mono font-medium text-amber-300 border border-amber-500/30">
-                          Choke-Point
-                        </span>
-                      )}
-                      <span className="font-mono text-[11px] text-[var(--ink-3)]">
-                        {h.importedBy} importer{h.importedBy === 1 ? "" : "s"}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-
-          {Object.keys(result.headFiles).length > 0 && (
-            <SaveProject name={name} files={result.headFiles} onOpenShareModal={onOpenShare} />
-          )}
-
-          <div className="hud p-4">
-            <h2 className="text-[11px] font-semibold text-[var(--ink-3)]">What this does not tell you</h2>
-            <ul className="mt-2 space-y-1.5">
-              {[
-                "Relationships come from explicit relative imports and direct calls by name. Package imports, dynamic imports, re-exports and method calls are not followed.",
-                "Nothing was executed. No test was run and no behaviour was observed — this is what the code says, not what it does.",
-                "Only TypeScript and JavaScript are parsed. Other languages in the project are invisible here.",
-              ].map((l) => (
-                <li key={l} className="flex gap-2 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
-                  <Link2Off size={13} className="mt-0.5 shrink-0 text-[var(--ink-3)]" />
-                  {l}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <ArchitectureStudioView
+          name={name}
+          picked={picked}
+          result={result}
+          gitRepo={gitRepo}
+          onOpenShare={onOpenShare}
+        />
       )}
     </div>
-  );
-}
-
-function Stat({ n, label, tone }: { n: number; label: string; tone?: "warn" }) {
-  return (
-    <span
-      className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
-        tone === "warn"
-          ? "border-[#FFB800]/35 bg-[#FFB800]/10 text-[#FFD166]"
-          : "border-[var(--line-2)] bg-white/[0.02] text-[var(--ink)]"
-      }`}
-    >
-      {tone === "warn" ? <Repeat size={14} /> : null}
-      <span className="font-mono text-[17px] leading-none">{n}</span>
-      <span className="text-[12px] text-[var(--ink-3)]">{label}</span>
-    </span>
   );
 }

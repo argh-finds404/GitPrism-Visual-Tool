@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CircleHelp, FlaskConical, Loader2, Play, ScanSearch, ShieldQuestion } from "lucide-react";
 import type { Candidate } from "@/features/changeverse/candidates";
@@ -55,27 +55,65 @@ const SYMBOL_STYLE: Record<SymbolVerdict, { label: string; cls: string; blurb: s
 
 export function ChangeVerseApp({ owner, repo, list }: { owner: string; repo: string; list: Candidate[] }) {
   const [selected, setSelected] = useState(list[0]?.id ?? "");
-  const [run, setRun] = useState<Run>({ status: "idle" });
+  const [run, setRun] = useState<Run>(() => (list[0]?.id ? { status: "running" } : { status: "idle" }));
 
   // A finished run describes the change it was run against, not whatever is picked now.
   const stale = run.status === "done" && run.candidate !== selected;
   const current = list.find((c) => c.id === selected);
 
-  const go = async () => {
-    setRun({ status: "running" });
-    try {
-      const res = await fetch(`/api/repos/${owner}/${repo}/preflight`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidate: selected }),
-      });
-      const data = await res.json();
-      if (!res.ok) return setRun({ status: "error", message: data.error ?? `The preflight failed (${res.status}).` });
-      setRun({ status: "done", candidate: data.candidate, result: data.result, findings: data.findings });
-    } catch {
-      setRun({ status: "error", message: "Could not reach the preflight service. Nothing was run." });
-    }
+  const runForCandidate = useCallback(
+    async (candidateId: string) => {
+      if (!candidateId) return;
+      setRun({ status: "running" });
+      try {
+        const res = await fetch(`/api/repos/${owner}/${repo}/preflight`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidate: candidateId }),
+        });
+        const data = await res.json();
+        if (!res.ok) return setRun({ status: "error", message: data.error ?? `The preflight failed (${res.status}).` });
+        setRun({ status: "done", candidate: data.candidate, result: data.result, findings: data.findings });
+      } catch {
+        setRun({ status: "error", message: "Could not reach the preflight service. Nothing was run." });
+      }
+    },
+    [owner, repo],
+  );
+
+  const selectCandidate = (candidateId: string) => {
+    setSelected(candidateId);
+    void runForCandidate(candidateId);
   };
+
+  const go = () => void runForCandidate(selected);
+
+  // Auto-run preflight on initial mount so the user lands directly on live predictions vs observations.
+  useEffect(() => {
+    const initialId = list[0]?.id;
+    if (!initialId) return;
+    let alive = true;
+    fetch(`/api/repos/${owner}/${repo}/preflight`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidate: initialId }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!alive) return;
+        if (!res.ok) {
+          setRun({ status: "error", message: data.error ?? `The preflight failed (${res.status}).` });
+        } else {
+          setRun({ status: "done", candidate: data.candidate, result: data.result, findings: data.findings });
+        }
+      })
+      .catch(() => {
+        if (alive) setRun({ status: "error", message: "Could not reach the preflight service. Nothing was run." });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [owner, repo, list]);
 
   return (
     <main className="studio min-h-[100dvh]">
@@ -99,7 +137,7 @@ export function ChangeVerseApp({ owner, repo, list }: { owner: string; repo: str
           <select
             id="cv-candidate"
             value={selected}
-            onChange={(e) => setSelected(e.target.value)}
+            onChange={(e) => selectCandidate(e.target.value)}
             className="tf-input max-w-[22rem] flex-1 text-[12.5px]"
           >
             {list.map((c) => (
@@ -113,7 +151,28 @@ export function ChangeVerseApp({ owner, repo, list }: { owner: string; repo: str
             {run.status === "running" ? "Running" : "Run preflight"}
           </button>
         </div>
-        {current && <p className="mx-auto mt-2 max-w-[1400px] font-mono text-[11px] text-[var(--ink-3)]">{current.detail}</p>}
+        {current && (
+          <div className="mx-auto mt-2.5 flex max-w-[1400px] flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-mono text-[10.5px] uppercase tracking-wider text-[var(--ink-3)] mr-1">Quick Switch:</span>
+              {list.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => selectCandidate(c.id)}
+                  className={`rounded-lg px-2.5 py-1 font-mono text-[11px] transition-all ${
+                    selected === c.id
+                      ? "bg-[var(--violet)] text-white shadow-sm"
+                      : "border border-[var(--line)] bg-white/[0.03] text-[var(--ink-2)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  {c.kind === "pull" ? c.label : c.label.slice(0, 28)}
+                </button>
+              ))}
+            </div>
+            <p className="font-mono text-[11px] text-[var(--ink-3)]">{current.detail}</p>
+          </div>
+        )}
       </header>
 
       <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6">

@@ -86,4 +86,18 @@ describe("an uploaded project goes through the real analyser", () => {
     // No layer config for an arbitrary project, so nothing is wrongly reported as a violation.
     expect(r.violations).toEqual([]);
   });
+
+  it("resolves @/ and ~/ path aliases and index.tsx files cleanly", async () => {
+    const { files } = await collect([
+      file("src/lib/math.ts", "export function add(a: number, b: number) { return a + b; }\n"),
+      file("src/components/ui/index.tsx", 'import { add } from "@/lib/math";\nexport function Widget() { return add(1, 2); }\n'),
+      file("src/app/page.tsx", 'import { Widget } from "~/components/ui";\nexport function Page() { return Widget(); }\n'),
+    ]);
+    const r = analyze(files, files, { base: "upload", head: "upload", layers: [], rules: [] });
+    expect(r.unresolved).toEqual([]);
+    const importEdges = r.edges.filter((e) => e.kind === "imports");
+    expect(importEdges).toHaveLength(2);
+    const callEdges = r.edges.filter((e) => e.kind === "calls");
+    expect(callEdges).toHaveLength(2);
+  });
 });

@@ -143,7 +143,7 @@ export function Journey() {
   };
 
   return (
-    <section ref={section} id="journey" aria-labelledby="journey-title" className="relative h-[440vh]">
+    <section ref={section} id="journey" aria-labelledby="journey-title" className="relative h-[290vh]">
       <div className="sticky top-0 flex h-[100svh] flex-col justify-center overflow-hidden pt-16 md:pt-20 pb-4">
         <Aurora tones={["amber", "violet"]} />
         <div className="shell relative flex flex-col justify-center my-auto">

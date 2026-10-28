@@ -91,6 +91,7 @@ export function HexField({
     let dpr = 1;
     let raf = 0;
     let visible = true;
+    let lastDraw = 0;
     const started = performance.now();
 
     // Canvas can't read CSS variables, so resolve the real family name once.
@@ -176,6 +177,10 @@ export function HexField({
       if (!visible || !base) return;
       const time = (now - started) / 1000;
       const { reduced: red } = live.current;
+      // Throttle canvas text rasterization so main-thread scroll handlers never contend with 120Hz fillText loops.
+      const minInterval = red ? 250 : time > INTRO.settle ? 55 : 32;
+      if (now - lastDraw < minInterval) return;
+      lastDraw = now;
       // Under reduced motion the sequence is already finished on the first frame.
       const p = red ? 1 : Math.max(0, Math.min(1, (time - INTRO.beam) / (INTRO.spectrum - INTRO.beam + 0.9)));
       const beamP = red ? 1 : Math.max(0, Math.min(1, (time - INTRO.beam) / (INTRO.prism - INTRO.beam)));

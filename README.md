@@ -29,7 +29,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Starts local Next.js dev server with hot reload |
-| `npm test` | Runs the full Vitest suite (192 unit and integration tests) |
+| `npm test` | Runs the full Vitest suite (194 unit and integration tests) |
 | `npm run lint` | Runs ESLint type checks and linting rules |
 | `npm run build` | Compiles an optimized Turbopack production bundle |
 | `npm start` | Runs the compiled production server |
@@ -44,7 +44,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 >
 > *Rather than relying on server-side Git binaries, it decompresses zlib objects in the client, constructs a topological DAG with multi-lane Bézier routing, and parses TypeScript ASTs to identify circular dependencies and blast radius choke-points.*
 >
-> *For privacy and performance, I architected it as a hybrid local-first system: zero source code leaves the device by default, persisting in IndexedDB with portable `.gitprism.json` bundle exports, with an optional 7-day TTL cloud share powered by Prisma and PostgreSQL. The entire core is validated by a 192-test suite asserting parity against real Git CLI hash outputs."*
+> *For privacy and performance, I architected it as a hybrid local-first system: zero source code leaves the device by default, persisting in IndexedDB with portable `.gitprism.json` bundle exports, with an optional 7-day TTL cloud share powered by Prisma and PostgreSQL. The entire core is validated by a 194-test suite asserting parity against real Git CLI hash outputs."*
 
 ### Why This Project Matters to Me
 Most developers interact with Git dozens of times every day, yet for many, version control remains an opaque black box—a series of memorized terminal commands executed with a lingering fear of breaking history or getting trapped in a painful merge conflict.
@@ -99,10 +99,10 @@ If you have **60 seconds** to evaluate GitPrism's engineering depth and architec
 | :--- | :--- | :--- |
 | **Low-Level Systems** | In-browser loose object zlib decompression via native `DecompressionStream("deflate")` | Verified by `echo <content> \| git hash-object --stdin` |
 | **Graph Algorithms** | Multi-lane topological SVG DAG layout with cubic Bézier branch joins & keyboard navigation (`j`/`k`) | 100% collision-free track routing |
-| **Compiler & AST** | TypeScript/JavaScript AST static analysis for dependency graphs, cycle detection, & fan-in choke points | Computes quantitative **Architectural Health Score** (0–100) |
+| **Compiler & AST** | TypeScript/JavaScript AST static analysis (`@/` & `~/` aliases, index resolution) for dependency graphs, cycle detection, & fan-in choke points | Computes quantitative **Architectural Health Score** (0–100) + interactive SVG Blast-Radius Topology Map |
 | **Sandboxed Execution** | Disposable Web Worker runtime isolated from the DOM & host thread | Stops runaway microtasks, infinite loops, & memory leaks |
 | **Local-First Storage** | Client-side IndexedDB vault (`idb-keyval`) + portable `.gitprism.json` bundles + opt-in 7-day cloud link | Zero source code leaves the device by default |
-| **Test Quality** | 192 unit & integration tests across 13 test files | 100% pass rate asserting byte parity with GNU `git` commands |
+| **Test Quality** | 194 unit & integration tests across 13 test files | 100% pass rate asserting byte parity with GNU `git` commands |
 
 > 💡 **Immediate Evaluation**: Visit `/analyze` and click **"Launch Demo"** on either curated repository (`acme-shop` or `prism-core`) to immediately experience the live multi-lane SVG DAG, keyboard navigation (`j`/`k`, `?`), and 5-tab commit inspector without uploading any files.
 
@@ -133,20 +133,26 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 
   Stage 3: Personal Project Architecture & Git Studio
   ▶ Local-First Architecture Studio (`/analyze`)
-    ├── Drop any local repository folder or `.gitprism.json` bundle directly onto the window
-    ├── Explore real multi-lane Git branch DAGs with smooth bezier curves
+    ├── 1-click native folder picker or anytime drag-and-drop overlay onto the window
+    ├── Explore real multi-lane Git branch DAGs, tags, remote origin URLs, and branch reflogs
     ├── Inspect exact `+add / -del` diff counters and 5-block proportional diff meters
-    ├── Explore recursive directory trees with search filter and instant inline code previews
-    ├── Check the Impact Radar for blast radius, downstream dependents, and test coverage
+    ├── Interactive Architecture & Topology Studio: 2D SVG Dependency & Blast-Radius Map,
+    │   Live Blast-Radius Simulator, Module & Choke-Point Explorer, and Git Churn × Blast Matrix
     └── 1-click export of ARCHITECTURE.md dossiers and portable .gitprism.json bundles
 
   Stage 4: Specialized Production Studios
   ▶ PR Impact Studio (`/review/gitprism-demo/acme-shop/pull/42`)
     └── Inspect PR blast radius, affected callers, and test impacts across 5 interactive 3D lenses
   ▶ MergeLab (`/mergelab/gitprism-demo/acme-shop`)
-    └── 3-way merge workspace with conflict constellations, diff3 resolution, and in-worker test validation
+    └── 3-way merge workspace with conflict constellations, batch resolution, and in-worker test validation
   ▶ TimeFold (`/timefold/gitprism-demo/acme-shop`)
     └── Travel through history, track function DNA evolution, and bisect regressions with real test runs
+  ▶ ChangeVerse (`/changeverse/gitprism-demo/acme-shop`)
+    └── Live preflight candidate verification with instant Quick-Switch comparison
+  ▶ ProofGraph (`/proofgraph/gitprism-demo/acme-shop`)
+    └── Claim-to-evidence graph verifying candidate patches against real AST and runtime proofs
+  ▶ AgentTrace (`/agenttrace/gitprism-demo/acme-shop`)
+    └── Flight-recorder step replay (`Play`/`Pause`) and KPI telemetry for AI coding sessions
 ```
 
 ---
@@ -167,19 +173,23 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 - **Offline Persistence:** Actions are recorded and saved locally in browser IndexedDB, replaying automatically across page refreshes.
 
 ### 3. Personal Repository Studio (`/analyze`)
-- **Drag-and-Drop Ingestion:** Drop any project folder containing a `.git` directory directly into the browser.
+- **1-Click Native Folder Upload & Anytime Drag-and-Drop:** Pick any local project folder with a single click (via Chromium `showDirectoryPicker` or standard directory input) or drag-and-drop a folder at any time—even while another project is open. Automatically skips binary packfiles (`.git/objects/pack`), hooks, and build caches (`node_modules`, `.next`, `.turbo`) for near-instant ingestion.
 - **Hybrid Local-First Architecture:**
   - **100% Private Offline Vault:** Source files and Git commits are safely persisted inside your device's browser IndexedDB (`idb-keyval`). Zero source code ever touches a remote server without explicit consent.
   - **Portable Workspace Bundles:** 1-click export of your complete workspace into a lightweight `.gitprism.json` bundle containing your code AST and Git commit DAG for zero-cloud teammate collaboration.
   - **Opt-in Cloud Sharing:** Optional 7-day temporary share links (powered by PostgreSQL & Prisma at `/api/projects`) that auto-prune upon expiry for frictionless remote reviews.
-- **Multi-Lane SVG Git DAG:** Automatically renders concurrent branches and merge joins on color-coded tracks (`#8B5CF6`, `#06B6D4`, `#F59E0B`, `#EC4899`, `#10B981`) with smooth cubic bezier curves and pulsating HEAD markers.
+- **Multi-Lane SVG Git DAG & Rich `.git` Metadata:** Automatically renders concurrent branches and merge joins on color-coded tracks (`#8B5CF6`, `#06B6D4`, `#F59E0B`, `#EC4899`, `#10B981`) with smooth cubic bezier curves, pulsating HEAD markers, `.git/config` remote origin URLs, tags (`refs/tags/*`), and recent branch reflog entries (`logs/refs/heads/*`).
 - **5-Tab Commit Inspector:**
   - **Overview:** SHA-1 hash, root tree ID, author details, timestamp, and clickable parent commit navigation.
   - **Message:** Full commit message with 1-click copy.
-  - **Changes:** Unified and split diff modes, line addition/deletion statistics, and GitHub-style 5-block diff meters.
+  - **Changes:** Unified and split diff modes, memoized line addition/deletion statistics, and GitHub-style 5-block diff meters.
   - **Snapshot Tree:** Full recursive directory tree with live search filtering, expand/collapse controls, and instant inline code preview.
-  - **Impact Radar:** Cross-references diffs against AST import graphs, rating blast radius (*Isolated*, *Low*, *Moderate*, *High*, *Critical*) and listing downstream importing files, affected functions, and test coverage shields.
-- **Architectural Choke-Points:** Analyzes high fan-in modules (`importedBy >= 3`) and circular dependency cycles.
+  - **Impact Radar:** Cross-references diffs against AST import graphs (supporting `@/` and `~/` path aliases), rating blast radius (*Isolated*, *Low*, *Moderate*, *High*, *Critical*) and listing downstream importing files, affected functions, and test coverage shields.
+- **Interactive Architecture & Topology Studio:**
+  - **2D SVG Dependency & Blast-Radius Topology Map:** Groups modules into architectural columns (*Tests & Specs*, *Entrypoints & Routes*, *Feature & UI Modules*, *Core & Shared Hubs*) with animated cubic-bezier dependency edges and hop-by-hop blast-radius wave rings.
+  - **Module & Choke-Point Explorer:** Filter and sort all files by Fan-In, Fan-Out, Symbols, or Git Churn; filter by *Choke Points*, *Circular Dependencies*, *Untested Hubs*, or *Entrypoints*.
+  - **Live Blast-Radius Simulator & Code Inspector:** Select any module to inspect its transitive downstream callers, hop distance, exported symbols, covering test suites, and raw source code with clickable `import` lines.
+  - **Git Churn × Blast-Radius Hotspot Matrix:** Cross-references `.git` commit frequency against architectural fan-in to surface fragile hotspots (*High Churn × High Fan-In*).
 - **1-Click Dossier Export:** Generates a production-ready `ARCHITECTURE.md` complete with dependency tables and contributor stats.
 
 ### 4. PR Impact Studio (`/review/...`)
@@ -188,12 +198,17 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 
 ### 5. MergeLab (`/mergelab/...`)
 - **Three-Way Diff3 Engine:** Byte-identical to `git merge-file` across historical combinations.
-- **Conflict Constellation:** Visual spatial layout of conflicting chunks between `base`, `ours`, and `theirs`.
+- **Conflict Constellation & Batch Resolution:** Visual spatial layout of conflicting chunks between `base`, `ours`, and `theirs`, paired with 1-click batch resolution (`All Ours`, `All Theirs`, `Reset`).
 - **In-Browser Web Worker Validation:** Validates merge resolutions inside a disposable browser Web Worker, type-checking and running tests before you finalize the merge.
 
 ### 6. TimeFold (`/timefold/...`)
 - **Function DNA Tracker:** Follows individual function implementations across every commit in history, tracking renames, parameter mutations, and signature changes.
 - **Regression Bisecting:** Visual `git bisect` runner that executes committed fixture code in an isolated `node:vm` context to find exact breaking commits.
+
+### 7. ChangeVerse, ProofGraph & AgentTrace Studios
+- **ChangeVerse (`/changeverse/...`):** Live preflight verification studio that automatically evaluates candidate patches on load and provides 1-click Quick Switch comparison pills.
+- **ProofGraph (`/proofgraph/...`):** Interactive claim-to-evidence graph that automatically collects runtime and static proofs on mount.
+- **AgentTrace (`/agenttrace/...`):** Flight-recorder replay studio for autonomous coding sessions with `Play`/`Pause` auto-step playback and a session KPI summary strip (tool calls, files touched, duration, verification badge).
 
 ---
 
@@ -208,7 +223,7 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 | **Git Engine** | Custom Web Streams decompression (`git-reader.ts`) | Decompresses zlib loose objects in-browser with zero native binaries |
 | **Execution** | Web Workers & `node:vm` isolated runners | Safe, client-side test execution and merge validation |
 | **Local & Hybrid Storage**| IndexedDB (`idb-keyval`) + Prisma/PostgreSQL + `.gitprism.json` bundles | Hybrid local-first storage with zero-leak privacy & opt-in 7-day cloud sharing |
-| **Testing** | Vitest | 192 unit and integration tests validating Git hash parity and AST analysis |
+| **Testing** | Vitest | 194 unit and integration tests validating Git hash parity and AST analysis |
 
 ---
 

@@ -346,8 +346,20 @@ export function CommitHistoryView({
   const [treeSearchQuery, setTreeSearchQuery] = useState("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(60);
 
   const branchList = useMemo(() => Object.keys(repo.branches), [repo.branches]);
+  const tagCount = useMemo(() => Object.keys(repo.tags ?? {}).length, [repo.tags]);
+
+  const totalLineStats = useMemo(() => {
+    let totAdd = 0;
+    let totDel = 0;
+    for (const c of repo.commits) {
+      totAdd += c.additions ?? 0;
+      totDel += c.deletions ?? 0;
+    }
+    return { totAdd, totDel };
+  }, [repo.commits]);
 
   const filteredCommits = useMemo(() => {
     return repo.commits.filter((c) => {
@@ -364,6 +376,11 @@ export function CommitHistoryView({
       );
     });
   }, [repo.commits, selectedBranch, query]);
+
+  const displayedCommits = useMemo(
+    () => filteredCommits.slice(0, visibleLimit),
+    [filteredCommits, visibleLimit]
+  );
 
   const selectedCommit = useMemo(() => {
     if (filteredCommits.length === 0) return null;
@@ -428,9 +445,9 @@ export function CommitHistoryView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [filteredCommits, selectedOid, selectedCommit]);
 
-  // Multi-Lane DAG computation
+  // Multi-Lane DAG computation (computed over displayedCommits so large repos never stall DOM/SVG scroll)
   const dagLayout = useMemo(() => {
-    const commits = filteredCommits;
+    const commits = displayedCommits;
     const commitIndexMap = new Map<string, number>();
     commits.forEach((c, i) => commitIndexMap.set(c.oid, i));
 
@@ -516,7 +533,7 @@ export function CommitHistoryView({
     });
 
     return { nodes, connections, svgWidth, maxLane };
-  }, [filteredCommits]);
+  }, [displayedCommits]);
 
   // Blast Radius / Impact Radar computation
   const commitImpact = useMemo<CommitImpactSummary | null>(() => {
@@ -774,8 +791,9 @@ export function CommitHistoryView({
           <p className="mt-2 truncate font-mono text-[16px] font-semibold text-[var(--ink)]">
             {repo.headBranch}
           </p>
-          <p className="mt-1 font-mono text-[11px] text-[var(--ink-3)]">
-            {branchList.length} local branch{branchList.length === 1 ? "" : "es"}
+          <p className="mt-1 truncate font-mono text-[11px] text-[var(--ink-3)]">
+            {branchList.length} branch{branchList.length === 1 ? "" : "es"}
+            {tagCount > 0 ? ` • ${tagCount} tag${tagCount === 1 ? "" : "s"}` : ""}
           </p>
         </div>
 
@@ -796,26 +814,15 @@ export function CommitHistoryView({
             <span className="text-[12px] text-[var(--ink-3)]">commits parsed</span>
           </div>
           <div className="mt-1 flex items-center gap-2 font-mono text-[11px]">
-            {(() => {
-              let totAdd = 0;
-              let totDel = 0;
-              for (const c of repo.commits) {
-                totAdd += c.additions ?? 0;
-                totDel += c.deletions ?? 0;
-              }
-              if (totAdd > 0 || totDel > 0) {
-                return (
-                  <>
-                    <span className="text-[#3DE0A6]">+{totAdd}</span>
-                    <span className="text-[#FF6B6B]">-{totDel}</span>
-                    <span className="text-[var(--ink-3)]">lines</span>
-                  </>
-                );
-              }
-              return (
-                <span className="text-[var(--ink-3)]">HEAD: {repo.headOid.slice(0, 7)}</span>
-              );
-            })()}
+            {totalLineStats.totAdd > 0 || totalLineStats.totDel > 0 ? (
+              <>
+                <span className="text-[#3DE0A6]">+{totalLineStats.totAdd}</span>
+                <span className="text-[#FF6B6B]">-{totalLineStats.totDel}</span>
+                <span className="text-[var(--ink-3)]">lines</span>
+              </>
+            ) : (
+              <span className="text-[var(--ink-3)]">HEAD: {repo.headOid.slice(0, 7)}</span>
+            )}
           </div>
         </div>
 
@@ -1002,7 +1009,7 @@ export function CommitHistoryView({
                 {/* Multi-Lane SVG Canvas */}
                 <svg
                   width={dagLayout.svgWidth}
-                  height={filteredCommits.length * ROW_HEIGHT}
+                  height={displayedCommits.length * ROW_HEIGHT}
                   className="pointer-events-none absolute left-0 top-0 select-none z-10"
                   style={{ width: `${dagLayout.svgWidth}px` }}
                 >
@@ -1073,8 +1080,9 @@ export function CommitHistoryView({
                 </svg>
 
                 {/* Commit Rows list */}
-                <ol className="relative m-0 list-none p-0 flex-1 divide-y divide-[var(--line)]">
-                  {filteredCommits.map((c) => {
+                <div className="relative flex-1 min-w-0">
+                <ol className="relative m-0 list-none p-0 divide-y divide-[var(--line)]">
+                  {displayedCommits.map((c) => {
                     const isSelected = c.oid === selectedCommit?.oid;
                     const isMerge = c.parents.length > 1;
                     const hasDiffCounts = (c.additions !== undefined && c.additions > 0) || (c.deletions !== undefined && c.deletions > 0);
@@ -1171,6 +1179,30 @@ export function CommitHistoryView({
                     );
                   })}
                 </ol>
+                {filteredCommits.length > displayedCommits.length && (
+                  <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] bg-surface/60 px-4 py-2.5">
+                    <span className="font-mono text-[11px] text-[var(--ink-3)]">
+                      Showing {displayedCommits.length} of {filteredCommits.length} commits
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleLimit((v) => v + 80)}
+                        className="rounded-lg border border-[var(--line-2)] bg-surface px-2.5 py-1 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--violet)]/40 hover:text-[var(--ink)]"
+                      >
+                        Load 80 more
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVisibleLimit(filteredCommits.length)}
+                        className="rounded-lg bg-[var(--violet)]/15 px-2.5 py-1 font-mono text-[11px] font-medium text-[var(--violet-ink)] transition-colors hover:bg-[var(--violet)]/25"
+                      >
+                        Show all ({filteredCommits.length})
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </div>
               </div>
             )}
           </div>

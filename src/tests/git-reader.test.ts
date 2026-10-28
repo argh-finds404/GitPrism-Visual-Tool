@@ -123,4 +123,30 @@ describe("readLocalGitRepo", () => {
     expect(readmeDiff?.additions).toBe(1);
     expect(readmeDiff?.deletions).toBe(1);
   });
+
+  it("parses tags, remote origin URL, branch reflogs, and backslash paths", async () => {
+    const headFile = new File(["ref: refs/heads/feat/ui\n"], "HEAD");
+    Object.defineProperty(headFile, "webkitRelativePath", { value: "repo\\.git\\HEAD" });
+
+    const configFile = new File(['[remote "origin"]\n\turl = https://github.com/acme/repo.git\n'], "config");
+    Object.defineProperty(configFile, "webkitRelativePath", { value: "repo\\.git\\config" });
+
+    const tagFile = new File(["2222222222222222222222222222222222222222\n"], "v1.0.0");
+    Object.defineProperty(tagFile, "webkitRelativePath", { value: "repo/.git/refs/tags/v1.0.0" });
+
+    const branchLog = new File(
+      [
+        "0000000000000000000000000000000000000000 2222222222222222222222222222222222222222 Dev <dev@acme.io> 1700005000 +0000\tcommit (initial): Ship v1",
+      ],
+      "ui"
+    );
+    Object.defineProperty(branchLog, "webkitRelativePath", { value: "repo/.git/logs/refs/heads/feat/ui" });
+
+    const result = await readLocalGitRepo([headFile, configFile, tagFile, branchLog]);
+    expect(result).not.toBeNull();
+    expect(result?.headBranch).toBe("feat/ui");
+    expect(result?.remoteUrl).toBe("https://github.com/acme/repo.git");
+    expect(result?.tags?.["v1.0.0"]).toBe("2222222222222222222222222222222222222222");
+    expect(result?.commits[0]?.branches).toContain("feat/ui");
+  });
 });

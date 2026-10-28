@@ -208,14 +208,6 @@ export function HistoryGraph() {
                 aria-label="Commit graph"
               >
                 <defs>
-                  {/* User-space bounds: straight edges have a zero-height box, which would clip a relative filter. */}
-                  <filter id="glow" filterUnits="userSpaceOnUse" x={0} y={0} width={width} height={height}>
-                    <feGaussianBlur stdDeviation="4" result="b" />
-                    <feMerge>
-                      <feMergeNode in="b" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
                   <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
                     <path d="M0 0 L8 4 L0 8 z" fill="#8f89a0" />
                   </marker>
@@ -243,20 +235,31 @@ export function HistoryGraph() {
                     const b = pos(n);
                     const lit = ancestry.has(n.key) && ancestry.has(pk);
                     const color = lanes[i === 0 ? n.branch : p.branch].color;
+                    const d = edgePath(a, b);
                     return (
-                      <motion.path
-                        key={`${pk}-${n.key}`}
-                        d={edgePath(a, b)}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={lit ? 3 : 2}
-                        strokeOpacity={lit ? 1 : 0.28}
-                        filter={lit ? "url(#glow)" : undefined}
-                        markerStart={technical ? "url(#arrow)" : undefined}
-                        initial={reduce ? false : { pathLength: 0 }}
-                        animate={{ pathLength: shown ? 1 : 0 }}
-                        transition={{ duration: 0.9, delay: reduce ? 0 : n.x * 0.09, ease: [0.22, 1, 0.36, 1] }}
-                      />
+                      <g key={`${pk}-${n.key}`}>
+                        {lit && (
+                          <path
+                            d={d}
+                            fill="none"
+                            stroke={color}
+                            strokeWidth={8}
+                            strokeOpacity={0.18}
+                            strokeLinecap="round"
+                          />
+                        )}
+                        <motion.path
+                          d={d}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={lit ? 3 : 2}
+                          strokeOpacity={lit ? 1 : 0.28}
+                          markerStart={technical ? "url(#arrow)" : undefined}
+                          initial={reduce ? false : { pathLength: 0 }}
+                          animate={{ pathLength: shown ? 1 : 0 }}
+                          transition={{ duration: 0.9, delay: reduce ? 0 : n.x * 0.09, ease: [0.22, 1, 0.36, 1] }}
+                        />
+                      </g>
                     );
                   }),
                 )}
@@ -279,10 +282,9 @@ export function HistoryGraph() {
                         <circle
                           cx={x}
                           cy={y}
-                          r={isSel ? 15 : 11}
+                          r={isSel ? 16 : 12}
                           fill={lane.glow}
-                          opacity={inPath ? 0.45 : 0.12}
-                          filter="url(#glow)"
+                          opacity={inPath ? 0.28 : 0.08}
                         />
                         <circle
                           cx={x}

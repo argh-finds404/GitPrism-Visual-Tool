@@ -17,6 +17,15 @@ export const isTestFile = (path: string) => /(^|\/)tests?\//.test(path) || /\.(t
 export const isSecretFile = (path: string) => /(^|\/)\.env(\..*)?$/.test(path) || /\.(pem|key)$/.test(path);
 
 function resolveImport(from: string, spec: string, files: Set<string>): string | null {
+  const exts = ["", ".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx", "/index.js", "/index.jsx"];
+  if (spec.startsWith("@/") || spec.startsWith("~/")) {
+    const sub = spec.slice(2);
+    for (const prefix of ["src/", ""]) {
+      const candidate = prefix + sub;
+      for (const ext of exts) if (files.has(candidate + ext)) return candidate + ext;
+    }
+    return null;
+  }
   if (!spec.startsWith(".")) return null;
   const dir = from.split("/").slice(0, -1);
   for (const part of spec.split("/")) {
@@ -24,7 +33,7 @@ function resolveImport(from: string, spec: string, files: Set<string>): string |
     else if (part !== ".") dir.push(part);
   }
   const base = dir.join("/");
-  for (const ext of ["", ".ts", ".tsx", ".js", ".jsx", "/index.ts"]) if (files.has(base + ext)) return base + ext;
+  for (const ext of exts) if (files.has(base + ext)) return base + ext;
   return null;
 }
 

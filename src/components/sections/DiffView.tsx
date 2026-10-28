@@ -137,12 +137,11 @@ function Line({ line, active, hunk }: { line: DiffLine; active: boolean; hunk: n
   const sign = line.kind === "add" ? "+" : line.kind === "del" ? "−" : " ";
   return (
     <motion.div
-      layout="position"
       data-hunk={hunk ?? undefined}
       initial={{ opacity: 0, x: line.kind === "add" ? 10 : line.kind === "del" ? -10 : 0 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={`grid grid-cols-[2.6rem_2.6rem_1.4rem_1fr] font-mono text-[0.84rem] leading-7 transition-shadow ${rowTone[line.kind]} ${
         active ? "shadow-[inset_3px_0_0_var(--violet)]" : ""
       }`}
@@ -162,16 +161,13 @@ function SplitSide({ lines, side }: { lines: DiffLine[]; side: "a" | "b" }) {
       {rows.map((l) => {
         const n = side === "a" ? ("a" in l ? l.a : "") : "b" in l ? l.b : "";
         return (
-          <motion.div
+          <div
             key={`${side}-${l.kind}-${n}-${l.text}`}
-            layout="position"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
             className={`grid grid-cols-[2.6rem_1fr] font-mono text-[0.84rem] leading-7 ${rowTone[l.kind]}`}
           >
             <span className="select-none pr-2 text-right text-ink-3/80">{n}</span>
             <span className="whitespace-pre-wrap break-all pr-3">{l.text || " "}</span>
-          </motion.div>
+          </div>
         );
       })}
     </div>

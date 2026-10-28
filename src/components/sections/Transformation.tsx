@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
+import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll } from "motion/react";
 import { Pause, Play, RotateCcw, X } from "lucide-react";
 import { Chapter } from "@/components/ui/Chapter";
 import { Aurora } from "@/components/ui/Aurora";
@@ -270,6 +270,7 @@ export function Transformation() {
   const stage = useRef<HTMLDivElement>(null);
   const cards = useRef(new Map<Id, HTMLElement>());
   const reduce = usePrefersReducedMotion();
+  const inView = useInView(section, { margin: "100px 0px" });
   const [step, setStep] = useState(0);
   // In the history step, the third commit appears a third of the way through. Only the crossing
   // matters, so scrolling sets state twice at most instead of on every frame.
@@ -336,7 +337,7 @@ export function Transformation() {
   // When nobody is pointing at anything, trace the diagram on its own, so the relationships
   // are seen without requiring a hover. Any real interaction (hover, select, pause) takes over.
   const visibleIds = useMemo(() => Object.keys(places) as Id[], [places]);
-  const autoplayOn = !reduce && !paused && hover === null && selected === null;
+  const autoplayOn = inView && !reduce && !paused && hover === null && selected === null;
   const autoIndex = useAutoCycle(visibleIds.length, autoplayOn, 2200);
   const focus = hover ?? selected ?? (autoplayOn ? visibleIds[autoIndex] : null);
   const related = useMemo(() => (focus ? neighbours(focus) : null), [focus]);
@@ -370,7 +371,7 @@ export function Transformation() {
       : null;
 
   return (
-    <section ref={section} id="how" aria-labelledby="how-title" className="relative h-[460vh] bg-paper-2">
+    <section ref={section} id="how" aria-labelledby="how-title" className="relative h-[310vh] bg-paper-2">
       <div className="sticky top-0 flex h-[100svh] flex-col overflow-hidden pt-20 md:pt-24">
         <Aurora tones={["violet", "cyan"]} />
         <div className="shell relative grid h-full grid-rows-[auto_1fr] gap-4 pb-6 lg:grid-cols-12 lg:grid-rows-1 lg:gap-10 lg:pb-10">
@@ -421,7 +422,7 @@ export function Transformation() {
           <div className="order-1 flex min-h-0 flex-col lg:order-2 lg:col-span-7 lg:justify-center">
             <div
               ref={stage}
-              className={`panel relative mx-auto h-[42svh] min-h-[300px] w-full max-w-[720px] overflow-hidden rounded-[28px] lg:h-[min(72svh,720px)] lg:min-h-[430px] ${paused ? "paused" : ""}`}
+              className={`panel relative mx-auto h-[42svh] min-h-[300px] w-full max-w-[720px] overflow-hidden rounded-[28px] lg:h-[min(72svh,720px)] lg:min-h-[430px] ${paused || !inView ? "paused" : ""}`}
               style={{ containerType: "inline-size" }}
               onPointerLeave={() => setHover(null)}
             >
@@ -521,12 +522,11 @@ export function Transformation() {
                         transition={{ pathLength: { duration: 0.7, ease: [0.22, 1, 0.36, 1] }, d: spring }}
                         fill="none"
                         stroke={color}
-                        strokeWidth={lit ? 2.4 : 1.6}
+                        strokeWidth={lit ? 2.6 : 1.6}
                         strokeOpacity={lit ? 1 : 0.75}
                         markerEnd={e.kind === "parent" ? "url(#tx-arrow)" : undefined}
-                        style={{ filter: lit ? `drop-shadow(0 0 6px ${color})` : undefined }}
                       />
-                      {lit && <motion.path d={d} animate={{ d }} transition={{ d: spring }} fill="none" stroke="#fff" strokeOpacity={0.7} strokeWidth={1.2} className="flow" />}
+                      {lit && inView && <motion.path d={d} animate={{ d }} transition={{ d: spring }} fill="none" stroke="#fff" strokeOpacity={0.7} strokeWidth={1.2} className="flow" />}
                     </g>
                   );
                 })}

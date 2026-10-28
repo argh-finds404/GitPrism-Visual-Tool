@@ -59,6 +59,8 @@ export type ParsedGitRepo = {
   headBranch: string;
   headOid: string;
   branches: Record<string, string>; // branch name -> commit SHA
+  tags?: Record<string, string>; // tag name -> commit SHA
+  remoteUrl?: string;
   commits: GitCommit[];
   commitsByOid: Map<string, GitCommit>;
   contributors: GitContributor[];
@@ -259,12 +261,20 @@ export function computeCommitDiffs(
   commit: GitCommit,
   parentCommit: GitCommit | undefined,
   treesByOid: Map<string, GitTreeEntry[]>,
-  blobsByOid: Map<string, string>
+  blobsByOid: Map<string, string>,
+  flatCache?: Map<string, Map<string, { oid: string; mode: string }>>
 ): GitFileDiff[] {
   if (!commit.tree) return [];
 
-  const currentFiles = flattenTree(commit.tree, treesByOid);
-  const parentFiles = parentCommit?.tree ? flattenTree(parentCommit.tree, treesByOid) : new Map();
+  const getFlat = (treeOid: string) => {
+    if (flatCache?.has(treeOid)) return flatCache.get(treeOid)!;
+    const flat = flattenTree(treeOid, treesByOid);
+    flatCache?.set(treeOid, flat);
+    return flat;
+  };
+
+  const currentFiles = getFlat(commit.tree);
+  const parentFiles = parentCommit?.tree ? getFlat(parentCommit.tree) : new Map();
 
   const diffs: GitFileDiff[] = [];
 
@@ -321,7 +331,7 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
   const gitFiles = new Map<string, File>();
 
   for (const f of fileArray) {
-    const rawPath = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+    const rawPath = ((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name).replace(/\\/g, "/");
     const gitIdx = rawPath.indexOf(".git/");
     if (gitIdx !== -1) {
       const internalPath = rawPath.slice(gitIdx + 5);
@@ -331,6 +341,19 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
 
   if (gitFiles.size === 0) {
     return null;
+  }
+
+  // 0. Read remote origin URL from .git/config if present
+  let remoteUrl: string | undefined;
+  const configFile = gitFiles.get("config");
+  if (configFile) {
+    try {
+      const cfgText = await configFile.text();
+      const urlMatch = cfgText.match(/url\s*=\s*([^\r\n]+)/);
+      if (urlMatch) remoteUrl = urlMatch[1].trim();
+    } catch {
+      // ignore
+    }
   }
 
   // 1. Read HEAD
@@ -347,14 +370,21 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     }
   }
 
-  // 2. Read branch refs under refs/heads/
+  // 2. Read branch refs under refs/heads/ and tags under refs/tags/
   const branches: Record<string, string> = {};
+  const tags: Record<string, string> = {};
   for (const [path, file] of gitFiles.entries()) {
     if (path.startsWith("refs/heads/")) {
       const branchName = path.slice(11);
       const sha = (await file.text()).trim();
       if (/^[0-9a-f]{40}$/i.test(sha)) {
         branches[branchName] = sha;
+      }
+    } else if (path.startsWith("refs/tags/")) {
+      const tagName = path.slice(10);
+      const sha = (await file.text()).trim();
+      if (/^[0-9a-f]{40}$/i.test(sha)) {
+        tags[tagName] = sha;
       }
     }
   }
@@ -372,6 +402,9 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
         if (refName.startsWith("refs/heads/")) {
           const bName = refName.slice(11);
           if (!branches[bName]) branches[bName] = parts[0];
+        } else if (refName.startsWith("refs/tags/")) {
+          const tName = refName.slice(10);
+          if (!tags[tName]) tags[tName] = parts[0];
         }
       }
     }
@@ -443,11 +476,10 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     }
   }
 
-  // 5. Read reflogs (logs/HEAD) to catch historical commits even if older objects were packed
-  const reflogFile = gitFiles.get("logs/HEAD");
-  if (reflogFile) {
+  // 5. Read reflogs (logs/HEAD and logs/refs/heads/*) to catch historical commits even if older objects were packed
+  const parseReflogFile = async (file: File, branchHint?: string) => {
     try {
-      const logText = await reflogFile.text();
+      const logText = await file.text();
       for (const line of logText.trim().split("\n")) {
         const tabIdx = line.indexOf("\t");
         if (tabIdx === -1) continue;
@@ -462,6 +494,7 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
         if (action.startsWith("commit: ")) msg = action.slice(8);
         else if (action.startsWith("commit (amend): ")) msg = action.slice(16);
         else if (action.startsWith("commit (initial): ")) msg = action.slice(18);
+        else if (action.startsWith("commit (merge): ")) msg = action.slice(16);
 
         const summary = msg.split("\n")[0] || msg;
         const parent = oldSha !== "0000000000000000000000000000000000000000" ? oldSha : undefined;
@@ -474,13 +507,29 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
             author: { name: authorName, email: authorEmail, timestamp, tz },
             message: msg,
             summary,
-            branches: [],
+            branches: branchHint ? [branchHint] : [],
           });
+        } else if (branchHint) {
+          const existing = commitsByOid.get(newSha)!;
+          if (!existing.branches.includes(branchHint)) {
+            existing.branches.push(branchHint);
+          }
         }
       }
     } catch {
       // ignore
     }
+  };
+
+  for (const [path, file] of gitFiles.entries()) {
+    if (path.startsWith("logs/refs/heads/")) {
+      const bName = path.slice(16);
+      await parseReflogFile(file, bName);
+    }
+  }
+  const reflogFile = gitFiles.get("logs/HEAD");
+  if (reflogFile) {
+    await parseReflogFile(reflogFile);
   }
 
   // 6. Label commits with branch pointers and attach tree entries
@@ -498,12 +547,13 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     }
   }
 
+  const flatCache = new Map<string, Map<string, { oid: string; mode: string }>>();
   for (const commit of commitsByOid.values()) {
     if (commit.tree && treesByOid.has(commit.tree)) {
       commit.treeEntries = treesByOid.get(commit.tree);
     }
     const primaryParent = commit.parents[0] ? commitsByOid.get(commit.parents[0]) : undefined;
-    const computedDiffs = computeCommitDiffs(commit, primaryParent, treesByOid, blobsByOid);
+    const computedDiffs = computeCommitDiffs(commit, primaryParent, treesByOid, blobsByOid, flatCache);
     commit.diffs = computedDiffs;
     let add = 0;
     let del = 0;
@@ -554,6 +604,8 @@ export async function readLocalGitRepo(files: ArrayLike<File>): Promise<ParsedGi
     headBranch,
     headOid,
     branches,
+    tags,
+    remoteUrl,
     commits: commitList,
     commitsByOid,
     contributors,

@@ -16,11 +16,19 @@ const FILE_STATUS: Record<FileStatus, { label: string; color: string }> = {
 };
 
 export function Navigator() {
-  const { m, places, resolutions, fileEdits, selection, select } = useMergeLab();
+  const { m, places, resolutions, fileEdits, selection, select, resolve, reset } = useMergeLab();
   const [showAll, setShowAll] = useState(false);
   const resolvedCount = m.conflicts.filter((c) => resolutions[c.id] || c.path in fileEdits).length;
   const files = m.files.filter((f) => showAll || f.status !== "unchanged");
   const hidden = m.files.filter((f) => f.status === "unchanged").length;
+
+  const batchResolve = (strategy: "ours" | "theirs") => {
+    for (const c of m.conflicts) {
+      if (c.kind === "content") {
+        resolve(c.id, { strategy });
+      }
+    }
+  };
 
   return (
     <nav className="hud flex min-h-0 flex-col overflow-hidden" aria-label="Merge navigator">
@@ -33,6 +41,34 @@ export function Navigator() {
         </p>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8" role="progressbar" aria-valuemin={0} aria-valuemax={m.conflicts.length} aria-valuenow={resolvedCount} aria-label="Conflicts resolved">
           <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${(resolvedCount / Math.max(1, m.conflicts.length)) * 100}%`, background: M.resolved }} />
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => batchResolve("ours")}
+            className="flex-1 rounded-lg border border-white/12 bg-white/[0.03] px-2 py-1 font-mono text-[10.5px] text-[#c9c0d8] transition-colors hover:border-[#00F0FF]/50 hover:text-white"
+            title="Resolve all content conflicts with Ours"
+          >
+            All Ours
+          </button>
+          <button
+            type="button"
+            onClick={() => batchResolve("theirs")}
+            className="flex-1 rounded-lg border border-white/12 bg-white/[0.03] px-2 py-1 font-mono text-[10.5px] text-[#c9c0d8] transition-colors hover:border-[#FFB800]/50 hover:text-white"
+            title="Resolve all content conflicts with Theirs"
+          >
+            All Theirs
+          </button>
+          {resolvedCount > 0 && (
+            <button
+              type="button"
+              onClick={reset}
+              className="rounded-lg border border-white/10 px-2 py-1 font-mono text-[10.5px] text-[#9a90ad] hover:text-white"
+              title="Reset all conflict decisions"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </div>
 

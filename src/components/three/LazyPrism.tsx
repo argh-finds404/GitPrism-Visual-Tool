@@ -73,8 +73,8 @@ export function LazyPrism({ variant = "hero", background, reducedMotion, scrollT
       {poster && <Poster variant={variant} hidden={ready} compiling={mount && !ready} />}
       {mount && (
         <div
-          className="absolute inset-0 transition-[opacity,filter,transform] duration-500 ease-out"
-          style={ready ? { opacity: 1, filter: "blur(0px)", transform: "scale(1)" } : { opacity: 0, filter: "blur(10px)", transform: "scale(0.97)" }}
+          className="absolute inset-0 transition-[opacity,transform] duration-500 ease-out"
+          style={ready ? { opacity: 1, transform: "scale(1)" } : { opacity: 0, transform: "scale(0.97)" }}
         >
           <PrismScene
             variant={variant}

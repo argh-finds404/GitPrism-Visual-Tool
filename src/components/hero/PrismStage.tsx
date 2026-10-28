@@ -15,7 +15,7 @@ export function PrismStage({ reduced, handedOff }: { reduced?: boolean; handedOf
       className="absolute inset-0 h-full w-full"
       aria-hidden="true"
       initial={false}
-      animate={{ opacity: handedOff ? 0 : 1 }}
+      animate={{ opacity: handedOff ? 0.55 : 1 }}
       transition={{ duration: reduced ? 0 : 0.8, ease: "easeOut" }}
     >
       <defs>

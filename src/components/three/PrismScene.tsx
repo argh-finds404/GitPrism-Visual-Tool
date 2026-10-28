@@ -310,14 +310,14 @@ function HeroPrism({
         <mesh ref={prism} geometry={geometry}>
           <MeshTransmissionMaterial
             background={bg}
-            samples={quality === "high" ? 3 : 2}
-            resolution={quality === "high" ? 256 : 128}
+            samples={quality === "high" ? 4 : 2}
+            resolution={quality === "high" ? 512 : 256}
             transmission={1}
             thickness={0.7}
-            roughness={0.04}
+            roughness={0.02}
             ior={1.45}
             chromaticAberration={0.9}
-            anisotropicBlur={0.2}
+            anisotropicBlur={0.05}
             distortion={0.25}
             distortionScale={0.4}
             temporalDistortion={0}
@@ -332,7 +332,7 @@ function HeroPrism({
             clearcoatRoughness={0.05}
             envMapIntensity={dark ? 1.4 : 2.2}
           />
-          <Edges threshold={20} color={dark ? "#b6a0ff" : "#7654e8"} lineWidth={1} transparent opacity={dark ? 0.55 : 0.4} />
+          <Edges threshold={12} color={dark ? "#d4c6ff" : "#7654e8"} lineWidth={1.2} transparent opacity={dark ? 0.85 : 0.55} />
         </mesh>
       </group>
 

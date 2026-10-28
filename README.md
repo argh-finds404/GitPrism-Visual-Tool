@@ -3,6 +3,8 @@
 > **Git makes sense when you can see it.**  
 > GitPrism refracts monolithic code changes and version control internals into intuitive, interactive visual lenses — from raw byte-level content addressing to multi-lane commit DAGs, architectural blast radiuses, and semantic 3-way merge resolution.
 
+![GitPrism — 3D Optical Prism Hero & Interactive Git Refraction](./public/docs/tour/01-homepage-hero.png)
+
 ---
 
 ## ⚡ Quickstart: Run GitPrism Locally
@@ -155,11 +157,83 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
     └── Flight-recorder step replay (`Play`/`Pause`) and KPI telemetry for AI coding sessions
 ```
 
+### 📸 Visual Tour: Stage-by-Stage Walkthrough
+
+#### Stage 1 — Foundational Mental Model (`/`)
+<table>
+  <tr>
+    <td width="50%">
+      <img src="./public/docs/tour/01-homepage-hero.png" alt="Homepage 3D Optical Prism Hero" />
+      <p align="center"><sub><b>1a. 3D Optical Prism Hero (`/`)</b> — Real-time WebGL light refraction and hex-field stream.</sub></p>
+    </td>
+    <td width="50%">
+      <img src="./public/docs/tour/02-snapshot-lab.png" alt="Interactive Snapshot Lab" />
+      <p align="center"><sub><b>1b. Interactive Snapshot Lab (`/#playground`)</b> — Live keystroke SHA-1 calculation and snapshot history.</sub></p>
+    </td>
+  </tr>
+</table>
+
+#### Stage 2 — Hands-On Interactive Sandbox (`/lab`)
+![The Workbench Sandbox Lab](./public/docs/tour/03-workbench-lab.png)
+<p align="center"><sub><b>Stage 2: The Workbench Lab (`/lab`)</b> — Risk-free in-memory Git filesystem, interactive DAG object inspector, and guided challenges persisted in IndexedDB.</sub></p>
+
+#### Stage 3 — Personal Project Architecture & Git Studio (`/analyze`)
+![Personal Repository Studio — 1-Click Local Folder Ingestion & Curated Demo Presets](./public/docs/tour/04-analyze-landing.png)
+<p align="center"><sub><b>3a. Local-First Repository Hub (`/analyze`)</b> — 1-click native folder picker, `.gitprism.json` bundle import, and instant 1-click demo repositories (`acme-shop` & `prism-core`).</sub></p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="./public/docs/tour/05-analyze-git-dag.png" alt="Multi-Lane Git Commit DAG & 5-Tab Commit Inspector" />
+      <p align="center"><sub><b>3b. Multi-Lane SVG Git Commit DAG</b> — Concurrent branch tracks, `+add / -del` stats, and 5-tab Commit Inspector.</sub></p>
+    </td>
+    <td width="50%">
+      <img src="./public/docs/tour/06-analyze-architecture.png" alt="Interactive Architecture & Blast-Radius Topology Studio" />
+      <p align="center"><sub><b>3c. Interactive Architecture & Topology Studio</b> — 2D SVG Dependency & Blast-Radius Map, Choke-Point Explorer, and Blast Simulator.</sub></p>
+    </td>
+  </tr>
+</table>
+
+#### Stage 4 — Specialized Production Studios
+<table>
+  <tr>
+    <td width="50%">
+      <img src="./public/docs/tour/07-pr-impact-studio.png" alt="PR Impact Studio" />
+      <p align="center"><sub><b>4a. PR Impact Studio (`/review/...`)</b> — 5 interactive 3D lenses, blast-radius radar rings, and evidence-backed findings.</sub></p>
+    </td>
+    <td width="50%">
+      <img src="./public/docs/tour/08-mergelab.png" alt="MergeLab 3-Way Conflict Workspace" />
+      <p align="center"><sub><b>4b. MergeLab (`/mergelab/...`)</b> — 3-way diff3 engine, conflict constellations, batch resolution, and in-worker test checks.</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="./public/docs/tour/09-timefold.png" alt="TimeFold Function DNA & Bisect Runner" />
+      <p align="center"><sub><b>4c. TimeFold (`/timefold/...`)</b> — Function DNA evolution tracker across commits and interactive regression bisecting.</sub></p>
+    </td>
+    <td width="50%">
+      <img src="./public/docs/tour/10-changeverse.png" alt="ChangeVerse Live Preflight Verification" />
+      <p align="center"><sub><b>4d. ChangeVerse (`/changeverse/...`)</b> — Predicted static impact vs. observed runtime test execution with Quick-Switch pills.</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="./public/docs/tour/11-proofgraph.png" alt="ProofGraph Claim-to-Evidence Graph" />
+      <p align="center"><sub><b>4e. ProofGraph (`/proofgraph/...`)</b> — Verifies changed symbols against direct, indirect, or missing test evidence.</sub></p>
+    </td>
+    <td width="50%">
+      <img src="./public/docs/tour/12-agenttrace.png" alt="AgentTrace Flight-Recorder Session Replay" />
+      <p align="center"><sub><b>4f. AgentTrace (`/agenttrace/...`)</b> — Flight-recorder step replay (`Play`/`Pause`) and KPI telemetry for coding sessions.</sub></p>
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## 🛠️ Key Surfaces & Features
 
 ### 1. Interactive Landing Page (`/`)
+![Interactive Landing Page & Snapshot Lab](./public/docs/tour/02-snapshot-lab.png)
 - **Interactive Prism Hero:** A real-time 3D optical simulation using Three.js / React Three Fiber illustrating how monolithic source code refracts into distinct architectural dimensions.
 - **Chapter Storyline:** Real Git blob IDs for chapter headings (verifiable via `echo "<line>" | git hash-object --stdin`).
 - **Interactive Snapshot Demo:** Edit sample files, stage them into the index, and observe tree and commit object creation live.
@@ -167,12 +241,15 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 - **Scroll-Driven Journey:** A sticky, responsive chapter progression through the 5 foundations of Git architecture.
 
 ### 2. The Workbench Sandbox Lab (`/lab`)
+![The Workbench Sandbox Lab](./public/docs/tour/03-workbench-lab.png)
 - **In-Memory Git Engine:** Experiment freely with `commit`, `branch`, `checkout`, and `reset` without touching your terminal or disk.
 - **Interactive DAG Inspector:** Click any node to inspect raw object bytes, tree pointer hashes, and parent references.
 - **Guided Challenges:** Step-by-step challenges that teach branching strategies, detached HEAD states, and commit resets.
 - **Offline Persistence:** Actions are recorded and saved locally in browser IndexedDB, replaying automatically across page refreshes.
 
 ### 3. Personal Repository Studio (`/analyze`)
+![Personal Repository Studio — Multi-Lane Git Commit DAG](./public/docs/tour/05-analyze-git-dag.png)
+![Personal Repository Studio — Interactive Architecture & Blast-Radius Topology](./public/docs/tour/06-analyze-architecture.png)
 - **1-Click Native Folder Upload & Anytime Drag-and-Drop:** Pick any local project folder with a single click (via Chromium `showDirectoryPicker` or standard directory input) or drag-and-drop a folder at any time—even while another project is open. Automatically skips binary packfiles (`.git/objects/pack`), hooks, and build caches (`node_modules`, `.next`, `.turbo`) for near-instant ingestion.
 - **Hybrid Local-First Architecture:**
   - **100% Private Offline Vault:** Source files and Git commits are safely persisted inside your device's browser IndexedDB (`idb-keyval`). Zero source code ever touches a remote server without explicit consent.
@@ -193,19 +270,25 @@ If you are exploring GitPrism for the first time or evaluating its design and fu
 - **1-Click Dossier Export:** Generates a production-ready `ARCHITECTURE.md` complete with dependency tables and contributor stats.
 
 ### 4. PR Impact Studio (`/review/...`)
+![PR Impact Studio](./public/docs/tour/07-pr-impact-studio.png)
 - **Five Interactive 3D Lenses:** Visualize a pull request across *Blast Radius*, *Dependency Topology*, *Execution Call Graph*, *Test Coverage*, and *Layered Architecture*.
 - **Evidence-Backed Findings:** Automated static facts, warnings, and architectural hypotheses linking directly to source line numbers.
 
 ### 5. MergeLab (`/mergelab/...`)
+![MergeLab 3-Way Conflict Workspace](./public/docs/tour/08-mergelab.png)
 - **Three-Way Diff3 Engine:** Byte-identical to `git merge-file` across historical combinations.
 - **Conflict Constellation & Batch Resolution:** Visual spatial layout of conflicting chunks between `base`, `ours`, and `theirs`, paired with 1-click batch resolution (`All Ours`, `All Theirs`, `Reset`).
 - **In-Browser Web Worker Validation:** Validates merge resolutions inside a disposable browser Web Worker, type-checking and running tests before you finalize the merge.
 
 ### 6. TimeFold (`/timefold/...`)
+![TimeFold Function DNA & Bisect Runner](./public/docs/tour/09-timefold.png)
 - **Function DNA Tracker:** Follows individual function implementations across every commit in history, tracking renames, parameter mutations, and signature changes.
 - **Regression Bisecting:** Visual `git bisect` runner that executes committed fixture code in an isolated `node:vm` context to find exact breaking commits.
 
 ### 7. ChangeVerse, ProofGraph & AgentTrace Studios
+![ChangeVerse Live Preflight Verification](./public/docs/tour/10-changeverse.png)
+![ProofGraph Claim-to-Evidence Graph](./public/docs/tour/11-proofgraph.png)
+![AgentTrace Flight-Recorder Session Replay](./public/docs/tour/12-agenttrace.png)
 - **ChangeVerse (`/changeverse/...`):** Live preflight verification studio that automatically evaluates candidate patches on load and provides 1-click Quick Switch comparison pills.
 - **ProofGraph (`/proofgraph/...`):** Interactive claim-to-evidence graph that automatically collects runtime and static proofs on mount.
 - **AgentTrace (`/agenttrace/...`):** Flight-recorder replay studio for autonomous coding sessions with `Play`/`Pause` auto-step playback and a session KPI summary strip (tool calls, files touched, duration, verification badge).
